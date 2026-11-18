@@ -8,6 +8,10 @@ import { WebSocketServer } from 'ws';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { z } from 'zod';
+import { runCouncil } from './lib/council.js';
+import { qcCheck } from './lib/qc.js';
+import { runFreeTier, runPremium } from './lib/deploy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -223,6 +227,118 @@ app.get('/api/agora/pipeline-status', (req, res) => {
     template: seatsConfig.pipeline?.template || 'https://zes.codes',
     localPath: seatsConfig.pipeline?.localPath || '/data/data/com.termux/files/home/tmp/vercel/zes.codes',
   });
+});
+
+
+// ============================================================================
+// Pipeline API (admin key required)
+// ============================================================================
+
+function requireAdmin(req, res, next) {
+  const configured = process.env.AGORA_HUB_ADMIN_KEY;
+
+  if (!configured) {
+    return res.status(503).json({ error: 'AGORA_HUB_ADMIN_KEY is not configured' });
+  }
+
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+
+  if (token !== configured) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  return next();
+}
+
+function parseBody(schema, req, res) {
+  const parsed = schema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
+    return null;
+  }
+
+  return parsed.data;
+}
+
+const freeSchema = z.object({
+  title: z.string().min(1).max(120),
+  niche: z.string().min(1).max(120),
+  templateId: z.string().optional(),
+  dryRun: z.boolean().optional(),
+});
+
+const premiumSchema = z.object({
+  title: z.string().min(1).max(120).optional(),
+  niche: z.string().min(1).max(120).optional(),
+  framework: z.string().max(60).optional(),
+  deployTarget: z.enum(['vercel', 'cloudflare']).default('vercel'),
+  dryRun: z.boolean().optional(),
+});
+
+const qcSchema = z.object({
+  imageUrl: z.string().url(),
+  prompt: z.string().max(400).optional(),
+});
+
+app.post('/api/pipeline/free', requireAdmin, async (req, res) => {
+  const body = parseBody(freeSchema, req, res);
+
+  if (!body) {
+    return;
+  }
+
+  try {
+    const result = await runFreeTier({ ...body, logger: (line) => console.log('[free]', line) });
+    res.status(result.ok ? 200 : 422).json(result);
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/pipeline/premium', requireAdmin, async (req, res) => {
+  const body = parseBody(premiumSchema, req, res);
+
+  if (!body) {
+    return;
+  }
+
+  try {
+    const result = await runPremium({ ...body, logger: (line) => console.log('[premium]', line) });
+    res.status(result.ok ? 200 : 422).json(result);
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/qc/check', requireAdmin, async (req, res) => {
+  const body = parseBody(qcSchema, req, res);
+
+  if (!body) {
+    return;
+  }
+
+  try {
+    res.json(await qcCheck(body.imageUrl, { prompt: body.prompt }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/pipeline/council', requireAdmin, async (req, res) => {
+  const schema = z.object({ prompt: z.string().min(1).max(4000) });
+  const body = parseBody(schema, req, res);
+
+  if (!body) {
+    return;
+  }
+
+  try {
+    res.json(await runCouncil(body.prompt, { logger: (line) => console.log('[council]', line) }));
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
 });
 
 // ============================================================================

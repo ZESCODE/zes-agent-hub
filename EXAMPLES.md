@@ -99,11 +99,11 @@ curl http://localhost:8765/api/agora/inbox/john
 
 | Seat | Nickname@Model | Role | Capabilities |
 | --- | --- | --- | --- |
-| castor | castor@deepseek-v4.1-flash | Orchestrator | routing, synthesis, task-delegation, result-aggregation, vercel-deploy, cloudflare-deploy |
-| john | john@gpt-6-astra | Council | strategy, architecture, decision-making, planning |
-| siti | siti@claude-opus-5.5 | Council | creative, content, ux-design, writing |
-| laurent | laurent@grok-4.7 | Council | implementation, code-review, system-design, debugging |
-| labu | labu@deepseek-v4.1-flash | Council | deployment, infrastructure, vercel, cloudflare, devops |
+| castor | castor@deepseek/deepseek-v4.1-flash | Orchestrator | routing, synthesis, task-delegation, result-aggregation, vercel-deploy, cloudflare-deploy |
+| john | john@openai/gpt-6-astra | Council | strategy, architecture, decision-making, planning |
+| siti | siti@openai/gpt-6.1-terra | Council | creative, content, ux-design, writing |
+| laurent | laurent@x-ai/grok-4.6 | Council | implementation, code-review, system-design, debugging |
+| labu | labu@deepseek/deepseek-v4.1-flash | Council | deployment, infrastructure, vercel, cloudflare, devops |
 
 ## 8. Docker
 

@@ -61,10 +61,11 @@ The repository is an active reference implementation. What works today:
 | `scripts/council-run.js` | Implemented — requires a valid `POLLINATIONS_API_KEY` |
 | `scripts/drive-loop.js` | Implemented — polls seat inboxes on an interval |
 | `scripts/setup-seats.js` | Implemented — prints the seat and delegation plan |
-| QC Council | Design only — no code in this repository yet |
+| QC Council | Implemented — `server/lib/qc.js`, two vision reviewers, pass at ≥ 60 |
 | `index.html` | Static HTML template with `{{TITLE}}`, `{{NICHE}}`, `{{HERO_COPY}}`, `{{HERO_IMAGE_URL}}` placeholders |
 
-The package is ESM (`"type": "module"`). QC Council and R2 upload remain roadmap items.
+The package is ESM (`"type": "module"`). R2 image upload and the Postgres-backed job
+store (ZAP v1 Milestone 1) remain roadmap items.
 
 ---
 
@@ -75,11 +76,11 @@ live in [`seats/config.json`](./seats/config.json).
 
 | Seat | Role | Model Assignment | Provider |
 | --- | --- | --- | --- |
-| `castor` | Orchestrator | `castor@deepseek-v4.1-flash` | Pollinations |
-| `john` | Council | `john@gpt-6-astra` | Pollinations |
-| `siti` | Council | `siti@claude-opus-5.5` | Pollinations |
-| `laurent` | Council | `laurent@grok-4.7` | Pollinations |
-| `labu` | Council | `labu@deepseek-v4.1-flash` | Pollinations |
+| `castor` | Orchestrator | `castor@deepseek/deepseek-v4.1-flash` | Pollinations |
+| `john` | Council | `john@openai/gpt-6-astra` | Pollinations |
+| `siti` | Council | `siti@openai/gpt-6.1-terra` | Pollinations |
+| `laurent` | Council | `laurent@x-ai/grok-4.6` | Pollinations |
+| `labu` | Council | `labu@deepseek/deepseek-v4.1-flash` | Pollinations |
 
 Model routing works as follows:
 
@@ -100,12 +101,12 @@ seat's model.
 
 ```mermaid
 flowchart TD
-    A([User Prompt]) --> B["castor@deepseek-v4.1-flash<br/>Orchestrator"]
+    A([User Prompt]) --> B["castor@deepseek/deepseek-v4.1-flash<br/>Orchestrator"]
     B -->|routing plan| C[Council Channel]
-    C --> D1[john@gpt-6-astra]
-    C --> D2[siti@claude-opus-5.5]
-    C --> D3[laurent@grok-4.7]
-    C --> D4[labu@deepseek-v4.1-flash]
+    C --> D1[john@openai/gpt-6-astra]
+    C --> D2[siti@openai/gpt-6.1-terra]
+    C --> D3[laurent@x-ai/grok-4.6]
+    C --> D4[labu@deepseek/deepseek-v4.1-flash]
     D1 --> E[Consensus and synthesis]
     D2 --> E
     D3 --> E
@@ -160,12 +161,16 @@ Recurring posts via Cloudflare Cron Triggers + D1 + R2 — not implemented yet.
 
 ## QC Council
 
-The QC Council is the planned parallel image-inspection stage: generated images are
-scored by several vision models, and failures trigger a self-healing retry (new seed, up
-to three attempts) before a deploy is allowed.
+The QC Council inspects generated images in parallel: every reviewer receives the image
+plus a rubric and answers with `{"score": 0-100, "issues": []}`. The average decides the
+verdict — `passed` at 60 or above, `recommendation: "regenerate"` below that.
 
-**This is design only.** The current codebase contains no QC implementation, no vision
-model calls and no retry loop. Treat every QC claim in older docs as a roadmap item.
+- Reviewers: the council seat models from `seats/config.json` (falling back to
+  `openai/gpt-6-astra` and `x-ai/grok-4.6`).
+- A failed verdict triggers a self-healing retry with a new image seed, up to three
+  attempts. The free pipeline refuses to deploy after three failures and returns the QC
+  report.
+- Unavailable checks are reported as `score: null` and never counted as a pass.
 
 ---
 
@@ -192,6 +197,34 @@ exposes a WebSocket at `/ws`.
 These routes are currently unauthenticated. `AGORA_HUB_ADMIN_KEY` is declared in
 `vercel.json` and `.env.example` but is not enforced by the server yet — do not expose
 the hub publicly until auth is added.
+
+### Pipeline API (admin key required)
+
+These routes require `Authorization: Bearer $AGORA_HUB_ADMIN_KEY`. When the key is not
+configured the routes fail closed with `503`; a wrong key returns `401`. Request bodies
+are validated with zod.
+
+| Method | Path | Body | Response |
+| --- | --- | --- | --- |
+| POST | `/api/pipeline/free` | `{ title, niche, templateId?, dryRun? }` | `{ ok, liveUrl, provider, imageUrl, qc, previewPath }` |
+| POST | `/api/pipeline/premium` | `{ title?, niche?, framework?, deployTarget?, dryRun? }` | `{ ok, liveUrl, provider, previewPath }` |
+| POST | `/api/qc/check` | `{ imageUrl, prompt? }` | `{ passed, averageScore, recommendation, models }` |
+| POST | `/api/pipeline/council` | `{ prompt }` | `{ ok, routing, responses, synthesis, deployment }` |
+
+`dryRun: true` renders the site and returns the local path without touching Vercel or
+Cloudflare.
+
+Free tier flow: hero copy (Castor) → hero image (Pollinations Image API) → QC Council
+(two vision models, pass at ≥ 60) → template render → Cloudflare Pages deploy. A failed
+QC verdict is retried with a new seed up to three times; the pipeline then returns
+`422` with the QC report rather than deploying.
+
+```bash
+curl -X POST http://localhost:8765/api/pipeline/free \
+  -H "Authorization: Bearer $AGORA_HUB_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Joe Coffee","niche":"coffee shop","dryRun":true}'
+```
 
 ---
 
@@ -252,6 +285,7 @@ Copy `.env.example` to `.env`. The table below matches that file exactly.
 | `COUNCIL_CHANNEL_NAME` | no | Council channel name, default `council-channel` |
 | `LOG_LEVEL` | no | Log verbosity |
 | `LOG_DIR` | no | Log directory |
+| `CLOUDFLARE_PAGES_PROJECT` | no | Cloudflare Pages project used by the deploy pipeline |
 
 \* Required only for the corresponding deployment target.
 

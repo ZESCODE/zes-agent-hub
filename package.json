@@ -17,28 +17,33 @@
     "agent:council": "node scripts/council-run.js",
     "deploy:vercel": "vercel --prod",
     "deploy:cloudflare": "wrangler deploy",
-    "deploy:all": "npm run deploy:vercel && npm run deploy:cloudflare"
+    "deploy:all": "npm run deploy:vercel && npm run deploy:cloudflare",
+    "db:migrate": "node scripts/migrate.js",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "@pollinations/cli": "^0.1.83",
     "ai": "^3.4.0",
-    "express": "^4.19.2",
     "cors": "^2.8.5",
-    "ws": "^8.17.1",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "pg": "^8.23.1",
     "uuid": "^9.0.1",
-    "zod": "^3.23.8",
-    "node-fetch": "^3.3.2"
+    "ws": "^8.17.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "vite": "^5.4.0",
-    "vitest": "^2.1.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "@types/uuid": "^9.0.0",
+    "@types/ws": "^8.5.0",
     "eslint": "^8.57.0",
     "typescript": "^5.6.0",
-    "@types/node": "^20.0.0",
-    "@types/express": "^4.17.21",
-    "@types/cors": "^2.8.17",
-    "@types/ws": "^8.5.0",
-    "@types/uuid": "^9.0.0"
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
   },
   "engines": {
     "node": ">=20.0.0"

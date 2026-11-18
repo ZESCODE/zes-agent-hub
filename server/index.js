@@ -12,6 +12,14 @@ import { z } from 'zod';
 import { runCouncil } from './lib/council.js';
 import { qcCheck } from './lib/qc.js';
 import { runFreeTier, runPremium } from './lib/deploy.js';
+import { createDatabase, defaultDatabaseOptions, migrate } from './lib/db/pool.js';
+import { createRepositories } from './lib/repositories/index.js';
+import { createEngine } from './lib/workflows/engine.js';
+import { createApiRouter } from './lib/api/v1.js';
+import { buildAgentRegistry } from './lib/agents/registry.js';
+import { createPlanner } from './lib/orchestrator/planner.js';
+import { createScheduler } from './lib/orchestrator/scheduler.js';
+import { runTaskWithModel } from './lib/orchestrator/model-runner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +29,65 @@ const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
 app.use(cors());
 app.use(express.json());
+
+// ---------------------------------------------------------------------------
+// ZAP v1 persistent foundation
+// ---------------------------------------------------------------------------
+
+const database = await createDatabase(defaultDatabaseOptions());
+const appliedMigrations = await migrate(database);
+const repositories = createRepositories(database);
+const workflowEngine = createEngine({
+  db: database,
+  repos: repositories,
+  logger: (message, detail) => console.log(message, detail || ''),
+});
+
+app.locals.database = database;
+app.locals.repos = repositories;
+app.locals.engine = workflowEngine;
+
+app.locals.metrics = { startedAt: Date.now(), requests: 0, errors: 0 };
+
+app.use((req, res, next) => {
+  app.locals.metrics.requests += 1;
+  next();
+});
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, service: 'zes-agent-hub', version: '0.2.0', protocol: 'agora/0.4' });
+});
+
+app.get('/ready', async (req, res) => {
+  try {
+    await database.query('SELECT 1');
+    res.json({
+      ok: true,
+      database: database.kind,
+      migrations: appliedMigrations,
+      checks: { database: 'ok' },
+    });
+  } catch (error) {
+    res.status(503).json({ ok: false, checks: { database: error.message } });
+  }
+});
+
+app.get('/metrics', (req, res) => {
+  const configured = process.env.AGORA_HUB_ADMIN_KEY;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+
+  if (!configured || token !== configured) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  return res.json({
+    uptimeMs: Date.now() - app.locals.metrics.startedAt,
+    requests: app.locals.metrics.requests,
+    errors: app.locals.metrics.errors,
+  });
+});
+
 
 // In-memory state (replace with SQLite/Postgres in production)
 const state = {
@@ -38,6 +105,31 @@ try {
 } catch (e) {
   console.warn('Could not load seats config, using defaults');
 }
+
+const agentRegistry = buildAgentRegistry(seatsConfig);
+const planner = createPlanner({ engine: workflowEngine, registry: agentRegistry, logger: (message, detail) => console.log(message, detail || '') });
+const scheduler = createScheduler({
+  engine: workflowEngine,
+  registry: agentRegistry,
+  repos: repositories,
+  modelRunner: runTaskWithModel,
+  logger: (message, detail) => console.log(message, detail || ''),
+});
+
+app.locals.registry = agentRegistry;
+
+app.use(
+  '/api/v1',
+  createApiRouter({
+    engine: workflowEngine,
+    repos: repositories,
+    db: database,
+    registry: agentRegistry,
+    planner,
+    scheduler,
+  }),
+);
+
 
 // Register seats
 for (const seat of seatsConfig.seats || []) {
@@ -365,10 +457,11 @@ const PORT = process.env.AGORA_HUB_PORT || 8765;
 httpServer.listen(PORT, () => {
   console.log(`zes-agent-hub listening on http://localhost:${PORT}`);
   console.log(`Seats registered: ${state.seats.size}`);
-  for (const [id, seat] of state.seats) {
+  for (const seat of state.seats.values()) {
     console.log(`  ${seat.nicknameModel} (${seat.role}) — ${seat.status}`);
   }
   console.log(`Channels: ${state.channels.size}`);
 });
 
 export default app;
+export { httpServer, database };

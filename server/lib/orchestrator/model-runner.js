@@ -1,0 +1,68 @@
+// zes-agent-hub — agent model runner
+// Executes one task with the routed model and returns a structured result.
+
+import { pollinationsGenChat } from '../../pollinations-client.js';
+
+const SYSTEM_PROMPTS = {
+  castor: 'You are Castor, the orchestrator. Break objectives into concrete, verifiable steps.',
+  john: 'You are John, the architect and researcher. Be evidence-based and cite sources you used.',
+  siti: 'You are Siti, product and UX. Return concrete, implementable direction.',
+  laurent: 'You are Laurent, the engineer. Return reviewable implementation guidance.',
+  labu: 'You are Labu, infrastructure. Return exact deployment steps and identifiers.',
+  verifier: 'You are the Verifier. Evaluate acceptance criteria independently. Missing evidence is not a pass.',
+};
+
+function extractJson(content) {
+  const match = content.match(/\{[\s\S]*\}/);
+
+  if (!match) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Run one task through a model and return a structured AgentResult-shaped payload.
+ */
+export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000 }) {
+  const instruction = [
+    SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}, a ${agent.role} agent.`,
+    `Task objective: ${task.objective}`,
+    `Expected outputs: ${JSON.stringify(task.expected_outputs || [])}`,
+    `Acceptance criteria: ${JSON.stringify(task.acceptance_criteria || [])}`,
+    'Respond with JSON only: {"summary": "...", "outputs": ["..."], "issues": ["..."]}.',
+  ].join('\n\n');
+
+  const response = await pollinationsGenChat(
+    route.model,
+    [
+      { role: 'system', content: SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}.` },
+      { role: 'user', content: instruction },
+    ],
+    { maxTokens: 2000, temperature: 0.3 },
+  );
+
+  const parsed = extractJson(response.content);
+
+  return {
+    result: {
+      status: 'completed',
+      summary: parsed?.summary || response.content.slice(0, 800),
+      artifacts: [],
+      outputs: parsed?.outputs || [],
+      issues: parsed?.issues || [],
+      evidence: [],
+      requiresApproval: false,
+      model: route.model,
+      agentId: agent.id,
+    },
+    inputTokens: response.tokens ? Math.round(response.tokens * 0.7) : null,
+    outputTokens: response.tokens ? Math.round(response.tokens * 0.3) : null,
+    timeoutMs,
+  };
+}

@@ -47,3 +47,9 @@ coverage/
 
 # Rendered pipeline output
 .zes-builds/
+
+# Local database data
+data/
+
+# npm lockfile (project uses pnpm)
+package-lock.json

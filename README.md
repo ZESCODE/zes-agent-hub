@@ -193,7 +193,11 @@ workflow engine. See [docs/architecture.md](docs/architecture.md) for the assess
 | POST | `/api/v1/jobs/:jobId/resume` | Resume, reclaiming expired leases |
 | GET | `/api/v1/tasks/:taskId` | Task detail |
 | POST | `/api/v1/tasks/:taskId/transitions` | Request a task transition |
-| GET | `/api/v1/agents` | Agents with task counts |
+| GET | `/api/v1/agents` | Agent registry with task counts |
+| GET | `/api/v1/agents/:agentId` | Agent definition |
+| POST | `/api/v1/jobs/:jobId/plan` | Castor creates the task plan |
+| POST | `/api/v1/jobs/:jobId/run-next` | Run the next eligible task |
+| GET | `/api/v1/jobs/:jobId/usage` | Model usage for the job |
 | GET | `/api/v1/approvals` | Pending approvals |
 | POST | `/api/v1/approvals/:id/approve` | Approve (single use) |
 | POST | `/api/v1/approvals/:id/reject` | Reject (single use) |

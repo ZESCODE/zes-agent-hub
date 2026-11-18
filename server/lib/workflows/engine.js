@@ -174,8 +174,18 @@ export function createEngine({ db, repos, logger = () => {} }) {
     return { ...outcome, replayed: false };
   }
 
+  async function getJob(jobId) {
+    return repos.jobs.findById(jobId);
+  }
+
+  async function listTasks(jobId) {
+    return repos.tasks.listByJob(jobId);
+  }
+
   return {
     createJob,
+    getJob,
+    listTasks,
     createTask,
     transitionJob,
     transitionTask,

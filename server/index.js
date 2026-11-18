@@ -16,6 +16,10 @@ import { createDatabase, defaultDatabaseOptions, migrate } from './lib/db/pool.j
 import { createRepositories } from './lib/repositories/index.js';
 import { createEngine } from './lib/workflows/engine.js';
 import { createApiRouter } from './lib/api/v1.js';
+import { buildAgentRegistry } from './lib/agents/registry.js';
+import { createPlanner } from './lib/orchestrator/planner.js';
+import { createScheduler } from './lib/orchestrator/scheduler.js';
+import { runTaskWithModel } from './lib/orchestrator/model-runner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,6 +46,7 @@ const workflowEngine = createEngine({
 app.locals.database = database;
 app.locals.repos = repositories;
 app.locals.engine = workflowEngine;
+
 app.locals.metrics = { startedAt: Date.now(), requests: 0, errors: 0 };
 
 app.use((req, res, next) => {
@@ -83,7 +88,6 @@ app.get('/metrics', (req, res) => {
   });
 });
 
-app.use('/api/v1', createApiRouter({ engine: workflowEngine, repos: repositories, db: database }));
 
 // In-memory state (replace with SQLite/Postgres in production)
 const state = {
@@ -101,6 +105,31 @@ try {
 } catch (e) {
   console.warn('Could not load seats config, using defaults');
 }
+
+const agentRegistry = buildAgentRegistry(seatsConfig);
+const planner = createPlanner({ engine: workflowEngine, registry: agentRegistry, logger: (message, detail) => console.log(message, detail || '') });
+const scheduler = createScheduler({
+  engine: workflowEngine,
+  registry: agentRegistry,
+  repos: repositories,
+  modelRunner: runTaskWithModel,
+  logger: (message, detail) => console.log(message, detail || ''),
+});
+
+app.locals.registry = agentRegistry;
+
+app.use(
+  '/api/v1',
+  createApiRouter({
+    engine: workflowEngine,
+    repos: repositories,
+    db: database,
+    registry: agentRegistry,
+    planner,
+    scheduler,
+  }),
+);
+
 
 // Register seats
 for (const seat of seatsConfig.seats || []) {

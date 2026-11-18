@@ -17,6 +17,9 @@ zes-agent-hub
 ├── server/lib/db/pool.js      PostgreSQL (pg) or PGlite (WASM Postgres) + migrations
 ├── server/lib/repositories/   Jobs, tasks, events, audit, artifacts, approvals, tools, users
 ├── server/lib/workflows/      State machine (transitions) and workflow engine
+├── server/lib/agents/         Typed agent registry (AgentDefinition)
+├── server/lib/orchestrator/   Castor planner, task scheduler, model runner
+├── server/lib/providers/      Rules-based model router
 ├── server/lib/api/v1.js       ZAP v1 REST API
 ├── migrations/                SQL migrations (001_zap_v1.sql)
 ├── scripts/                   Thin CLI wrappers over server/lib
@@ -57,8 +60,10 @@ zes-builder (React Router 8 + Vite, SSR, Vercel/Workers)
 | Approval lifecycle | **Closed** — single-use approvals with decisions recorded |
 | Idempotency | **Closed for tool executions** — unique idempotency key, replays return the original row |
 | Task leases | **Closed** — `locked_by` / `locked_until` with expired-lease recovery on resume |
-| Agent registry as typed definitions | **Partial** — seats exist; `AgentDefinition` fields (tools, permissions, maxConcurrentTasks) are not yet modelled |
-| Model router | **Not started** — routing today is per-agent, not per-task-type |
+| Agent registry as typed definitions | **Closed** — `server/lib/agents/registry.js` builds zod-validated `AgentDefinition` records from the seat config, plus a built-in Verifier |
+| Model router | **Closed (v1)** — `server/lib/providers/router.js` routes by task type with fallbacks, timeouts and retry budgets; usage is recorded in `model_usage` |
+| Castor planning | **Closed (v1)** — `server/lib/orchestrator/planner.js` decomposes an objective into a task plan with complete contracts; planning is rules-based in v1 |
+| Task scheduling with leases | **Closed** — `server/lib/orchestrator/scheduler.js` claims leases, executes through the routed model, stores results and records usage |
 | Tool Gateway execution engine | **Partial** — registry + idempotent records exist; permission checks and execution records are not wired to every tool |
 | Verifier agent | **Not started** — QC Council covers images only |
 | Builder job dashboard / timeline / approval UI | **Not started** — Builder has the hub client and deploy/QC surfaces only |
@@ -78,10 +83,8 @@ zes-builder (React Router 8 + Vite, SSR, Vercel/Workers)
 
 ## 5. Proposed minimal changes (remaining milestones)
 
-- **Milestone 2 — Castor orchestration:** planner that turns an objective into tasks using
-  the existing council cycle, plus a task-type model router.
-- **Milestone 3 — Tool Gateway:** registry entries become executable tools with
-  permission checks and execution records.
+- **Milestone 3 — Tool Gateway:** turn the registry entries into executable tools with
+  permission checks and execution records. The idempotent execution table already exists.
 - **Milestone 4 — Verifier:** independent verification against acceptance criteria.
 - **Milestone 5 — Builder integration:** job dashboard, task progress, approvals and
   artifacts using the `/api/v1` endpoints already implemented.

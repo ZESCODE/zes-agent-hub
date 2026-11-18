@@ -334,7 +334,24 @@ export function createRepositories(db) {
     },
   };
 
-  return { jobs, tasks, events, audit, artifacts, approvals, users, toolExecutions };
+  const modelUsage = {
+    async create({ id = uuid(), jobId, taskId = null, agentId, provider, model, inputTokens = null, outputTokens = null, estimatedCost = null, latencyMs = null, success }) {
+      const { rows } = await db.query(
+        `INSERT INTO model_usage (id, job_id, task_id, agent_id, provider, model, input_tokens, output_tokens, estimated_cost, latency_ms, success)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING *`,
+        [id, jobId, taskId, agentId, provider, model, inputTokens, outputTokens, estimatedCost, latencyMs, success],
+      );
+
+      return rows[0];
+    },
+    async listByJob(jobId) {
+      const { rows } = await db.query('SELECT * FROM model_usage WHERE job_id = $1 ORDER BY created_at ASC', [jobId]);
+      return rows;
+    },
+  };
+
+  return { jobs, tasks, events, audit, artifacts, approvals, users, toolExecutions, modelUsage };
 }
 
 export { fromJson };

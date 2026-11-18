@@ -126,6 +126,31 @@ describe('ZAP v1 HTTP API', () => {
     expect(body.limit).toBe(5);
   });
 
+  it('plans a job and runs the first task', async () => {
+    const created = await fetch(`${baseUrl}/api/v1/jobs`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ title: 'Milestone 2', objective: 'Scout a repository and verify the result' }),
+    });
+    const { jobId } = await created.json();
+
+    const plan = await fetch(`${baseUrl}/api/v1/jobs/${jobId}/plan`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    const planBody = await plan.json();
+    expect(plan.status).toBe(201);
+    expect(planBody.tasks.length).toBeGreaterThanOrEqual(5);
+
+    const agents = await fetch(`${baseUrl}/api/v1/agents`, { headers: authHeaders() });
+    const agentsBody = await agents.json();
+    expect(agentsBody.agents.some((agent) => agent.id === 'verifier')).toBe(true);
+
+    const usage = await fetch(`${baseUrl}/api/v1/jobs/${jobId}/usage`, { headers: authHeaders() });
+    expect(usage.status).toBe(200);
+  });
+
   it('exposes the tool registry', async () => {
     const response = await fetch(`${baseUrl}/api/v1/tools`, { headers: authHeaders() });
     const body = await response.json();

@@ -4,7 +4,7 @@
 import express from 'express';
 import { z } from 'zod';
 
-export function createApiRouter({ engine, repos, db, logger = () => {} }) {
+export function createApiRouter({ engine, repos, db, registry, planner, scheduler, logger = () => {} }) {
   const router = express.Router();
 
   router.use((req, res, next) => {
@@ -237,7 +237,97 @@ export function createApiRouter({ engine, repos, db, logger = () => {} }) {
     '/agents',
     asyncRoute(async (req, res) => {
       const { rows } = await db.query('SELECT assigned_agent AS id, COUNT(*)::int AS tasks FROM tasks GROUP BY assigned_agent');
-      return res.json({ agents: rows });
+      const counts = new Map(rows.map((row) => [row.id, row.tasks]));
+
+      return res.json({
+        agents: registry.list().map((agent) => ({
+          ...agent,
+          taskCount: counts.get(agent.id) || 0,
+        })),
+      });
+    }),
+  );
+
+  router.get(
+    '/agents/:agentId',
+    asyncRoute(async (req, res) => {
+      const agent = registry.find(req.params.agentId);
+
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      return res.json({ agent });
+    }),
+  );
+
+  router.post(
+    '/jobs/:jobId/plan',
+    asyncRoute(async (req, res) => {
+      const schema = z.object({ template: z.string().max(80).optional() });
+      const parsed = schema.safeParse(req.body ?? {});
+
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
+      }
+
+      try {
+        const result = await planner.planJob(req.params.jobId, parsed.data);
+        return res.status(201).json({
+          jobId: result.jobId,
+          reused: result.reused,
+          tasks: result.tasks.map((task) => ({
+            taskId: task.id,
+            assignedAgent: task.assigned_agent,
+            taskType: task.task_type,
+            acceptanceCriteria: task.acceptance_criteria,
+          })),
+        });
+      } catch (error) {
+        if (error.name === 'InvalidTransitionError') {
+          return res.status(409).json({ error: error.message });
+        }
+
+        throw error;
+      }
+    }),
+  );
+
+  router.post(
+    '/jobs/:jobId/run-next',
+    asyncRoute(async (req, res) => {
+      const schema = z.object({
+        workerId: z.string().max(120).optional(),
+        taskType: z.string().max(80).optional(),
+        agentId: z.string().max(80).optional(),
+      });
+      const parsed = schema.safeParse(req.body ?? {});
+
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
+      }
+
+      const job = await repos.jobs.findById(req.params.jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+
+      const result = await scheduler.runNextTask(job.id, parsed.data);
+      return res.json(result);
+    }),
+  );
+
+  router.get(
+    '/jobs/:jobId/usage',
+    asyncRoute(async (req, res) => {
+      const job = await repos.jobs.findById(req.params.jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+
+      return res.json({ usage: await repos.modelUsage.listByJob(job.id) });
     }),
   );
 

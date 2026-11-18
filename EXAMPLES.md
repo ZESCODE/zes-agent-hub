@@ -1,106 +1,127 @@
 # zes-agent-hub — Example Usage
 
-## 1. Basic Council Run
-
-Test the council orchestration with a single prompt:
+All commands assume the repository root and Node.js 20 or newer:
 
 ```bash
-# Set up environment
+npm install
+cp .env.example .env    # then fill in POLLINATIONS_API_KEY and deploy credentials
+```
+
+See [Current Status](./README.md#current-status) before running the council scripts:
+`agent:council`, `agent:drive` and `agent:setup` currently fail with the errors listed in
+[Troubleshooting](./README.md#troubleshooting).
+
+## 1. Start the Hub
+
+```bash
+npm run start
+curl http://localhost:8765/healthz
+```
+
+## 2. Basic Council Run
+
+Test council orchestration with a single prompt:
+
+```bash
 export POLLINATIONS_API_KEY=your_key_here
-
-# Run council orchestration
-pnpm run agent:council "Build and deploy a website on Vercel + Cloudflare"
+npm run agent:council -- "Build and deploy a website on Vercel + Cloudflare"
 ```
 
-## 2. Drive Loop (Unattended Mode)
+The runner asks Castor to route the prompt, sends it to the council seats, synthesizes a
+plan and prints the deployment stages. It does not deploy anything itself.
 
-Run the drive loop for unattended seat polling:
+## 3. Drive Loop (Unattended Mode)
 
 ```bash
-pnpm run agent:drive
+npm run agent:drive
 ```
 
-This will poll all member seats (john, siti, laurent, labu) every 30 seconds for inbox messages.
+Polls the member seats (john, siti, laurent, labu) every
+`DRIVE_LOOP_INTERVAL_MS` (default 30 seconds) for inbox messages.
 
-## 3. Seat Setup
-
-Initialize all seats on the hub:
+## 4. Seat Setup
 
 ```bash
-pnpm run agent:setup
+npm run agent:setup
 ```
 
-## 4. Vercel + Cloudflare Deploy Pipeline
+Registers the seats, missions and delegations from `seats/config.json` on the hub.
 
-First pipeline: build and deploy a website:
-
-```bash
-# Deploy everything
-pnpm run deploy:all
-
-# Or deploy separately
-pnpm run deploy:vercel
-pnpm run deploy:cloudflare
-```
-
-Or use the pipeline script directly:
+## 5. Deploy Pipeline
 
 ```bash
+# Clone/pull the template, then deploy to Vercel and Cloudflare
 node scripts/deploy-pipeline.js
+
+# Or deploy the current project directly
+npm run deploy:vercel
+npm run deploy:cloudflare
+npm run deploy:all
 ```
 
-## 5. HTTP API
+`scripts/deploy-pipeline.js` uses `ZES_CODES_PATH` for the local template clone
+(default `/data/data/com.termux/files/home/tmp/vercel/zes.codes`).
+
+## 6. HTTP API
 
 Check hub health:
+
 ```bash
 curl http://localhost:8765/healthz
 ```
 
 List seats:
+
 ```bash
 curl http://localhost:8765/api/agora/seats
 ```
 
 Get pipeline status:
+
 ```bash
 curl http://localhost:8765/api/agora/pipeline-status
 ```
 
-Post a message to council channel:
+Post a message to the council channel:
+
 ```bash
 curl -X POST http://localhost:8765/api/agora/post \
   -H "Content-Type: application/json" \
   -d '{"channel":"council-channel","message":"Review this deployment","from":"castor"}'
 ```
 
-Get seat inbox:
+Get a seat inbox:
+
 ```bash
 curl http://localhost:8765/api/agora/inbox/john
 ```
 
-## 6. Seat Reference (nickname@model)
+## 7. Seat Reference
 
 | Seat | Nickname@Model | Role | Capabilities |
-|------|---------------|------|-------------|
+| --- | --- | --- | --- |
 | castor | castor@deepseek-v4.1-flash | Orchestrator | routing, synthesis, task-delegation, result-aggregation, vercel-deploy, cloudflare-deploy |
 | john | john@gpt-6-astra | Council | strategy, architecture, decision-making, planning |
 | siti | siti@claude-opus-5.5 | Council | creative, content, ux-design, writing |
 | laurent | laurent@grok-4.7 | Council | implementation, code-review, system-design, debugging |
 | labu | labu@deepseek-v4.1-flash | Council | deployment, infrastructure, vercel, cloudflare, devops |
 
-## 7. Docker
+## 8. Docker
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-## 8. Vercel Deployment
+The container expects `.env` and exposes ports 8765 (hub) and 5173 (frontend).
+
+## 9. Vercel Deployment
 
 ```bash
-vercel --prod
+npm run deploy:vercel
 ```
 
-Set environment variables in Vercel dashboard:
+Set these variables in the Vercel project:
+
 - `POLLINATIONS_API_KEY`
 - `KILO_API_KEY` (optional)
 - `AGORA_HUB_ADMIN_KEY`
@@ -108,7 +129,11 @@ Set environment variables in Vercel dashboard:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-## 9. Template Reference
+`vercel.json` must point at `server/index.js` (see the README deployment section) before
+the deployed function can serve `/healthz` and `/api/agora/*`.
 
-- **zes.codes**: https://zes.codes (template website)
-- **Local template**: /data/data/com.termux/files/home/tmp/vercel/zes.codes
+## 10. Template Reference
+
+- **ZES.codes** template: https://zes.codes
+- **Local template**: set `ZES_CODES_PATH` (default
+  `/data/data/com.termux/files/home/tmp/vercel/zes.codes`)

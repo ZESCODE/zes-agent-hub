@@ -457,7 +457,7 @@ const PORT = process.env.AGORA_HUB_PORT || 8765;
 httpServer.listen(PORT, () => {
   console.log(`zes-agent-hub listening on http://localhost:${PORT}`);
   console.log(`Seats registered: ${state.seats.size}`);
-  for (const [id, seat] of state.seats) {
+  for (const seat of state.seats.values()) {
     console.log(`  ${seat.nicknameModel} (${seat.role}) — ${seat.status}`);
   }
   console.log(`Channels: ${state.channels.size}`);

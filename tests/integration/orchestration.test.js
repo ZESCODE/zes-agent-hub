@@ -6,7 +6,10 @@ import { buildAgentRegistry } from '../../server/lib/agents/registry.js';
 import { createPlanner } from '../../server/lib/orchestrator/planner.js';
 import { createScheduler } from '../../server/lib/orchestrator/scheduler.js';
 import { routeFor, knownTaskTypes } from '../../server/lib/providers/router.js';
-import seatsConfig from '../../seats/config.json' with { type: 'json' };
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const seatsConfig = JSON.parse(readFileSync(fileURLToPath(new URL('../../seats/config.json', import.meta.url)), 'utf8'));
 
 let db;
 let repos;

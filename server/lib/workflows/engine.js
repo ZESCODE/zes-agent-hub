@@ -57,7 +57,7 @@ export function createEngine({ db, repos, logger = () => {} }) {
     return task;
   }
 
-  async function transitionJob(jobId, nextState, { requestedBy = 'engine', reason = '', evidenceIds = [], actorType = 'system', actorId = 'engine' } = {}) {
+  async function transitionJob(jobId, nextState, { reason = '', evidenceIds = [], actorType = 'system', actorId = 'engine' } = {}) {
     const job = await repos.jobs.findById(jobId);
 
     if (!job) {
@@ -82,7 +82,7 @@ export function createEngine({ db, repos, logger = () => {} }) {
     return updated;
   }
 
-  async function transitionTask(taskId, nextState, { requestedBy = 'engine', reason = '', result, actorType = 'system', actorId = 'engine' } = {}) {
+  async function transitionTask(taskId, nextState, { reason = '', result, actorType = 'system', actorId = 'engine' } = {}) {
     const task = await repos.tasks.findById(taskId);
 
     if (!task) {

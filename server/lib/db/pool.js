@@ -50,6 +50,15 @@ async function createPostgres(connectionString) {
 
 async function createPGlite(dataDir) {
   const { PGlite } = await import('@electric-sql/pglite');
+
+  if (dataDir) {
+    /*
+     * PGlite creates its data directory with a non-recursive mkdir, so a
+     * nested path such as `.tmp/pglite-ci` fails unless the parents exist.
+     */
+    await fs.promises.mkdir(dataDir, { recursive: true });
+  }
+
   const db = dataDir ? new PGlite(dataDir) : new PGlite();
   await db.waitReady;
 

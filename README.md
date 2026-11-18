@@ -174,6 +174,38 @@ verdict — `passed` at 60 or above, `recommendation: "regenerate"` below that.
 
 ---
 
+## ZAP v1 API (`/api/v1`)
+
+The ZESCODE Agent Orchestration Protocol v1 foundation is implemented: PostgreSQL-backed
+jobs, tasks, approvals, artifacts, events and audit logs, a validated state machine and a
+workflow engine. See [docs/architecture.md](docs/architecture.md) for the assessment.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/api/v1/jobs` | Create a job |
+| GET | `/api/v1/jobs` | List jobs for an owner (paginated) |
+| GET | `/api/v1/jobs/:jobId` | Job detail with tasks |
+| GET | `/api/v1/jobs/:jobId/tasks` | List tasks |
+| GET | `/api/v1/jobs/:jobId/events` | Event history |
+| GET | `/api/v1/jobs/:jobId/artifacts` | Artifacts |
+| POST | `/api/v1/jobs/:jobId/transitions` | Request a state transition |
+| POST | `/api/v1/jobs/:jobId/cancel` | Cancel a job |
+| POST | `/api/v1/jobs/:jobId/resume` | Resume, reclaiming expired leases |
+| GET | `/api/v1/tasks/:taskId` | Task detail |
+| POST | `/api/v1/tasks/:taskId/transitions` | Request a task transition |
+| GET | `/api/v1/agents` | Agents with task counts |
+| GET | `/api/v1/approvals` | Pending approvals |
+| POST | `/api/v1/approvals/:id/approve` | Approve (single use) |
+| POST | `/api/v1/approvals/:id/reject` | Reject (single use) |
+| GET | `/api/v1/tools` | Tool registry |
+| GET | `/api/v1/tools/executions/:id` | Tool execution status |
+
+Every `/api/v1` route requires `Authorization: Bearer $AGORA_HUB_ADMIN_KEY` and returns
+`401` otherwise. Invalid transitions return `409`.
+
+Operational endpoints: `GET /health`, `GET /ready` (database + migration check) and
+`GET /metrics` (admin key required).
+
 ## HTTP API
 
 The Express server (`server/index.js`) listens on `AGORA_HUB_PORT` (default `8765`) and
@@ -260,6 +292,8 @@ Copy `.env.example` to `.env`. The table below matches that file exactly.
 | `AGORA_HUB_ADMIN_KEY` | yes | Admin key for hub API calls (declared, not yet enforced) |
 | `AGORA_HUB_DB_PATH` | no | SQLite path for hub state |
 | `AGORA_HUB_PORT` | no | HTTP port, default `8765` |
+| `DATABASE_URL` | yes* | PostgreSQL connection string for the job store |
+| `PGLITE_DATA_DIR` | no | PGlite data directory when `DATABASE_URL` is unset |
 | `POLLINATIONS_API_KEY` | yes | Pollinations bearer token |
 | `POLLINATIONS_API_BASE` | no | Pollinations API origin |
 | `POLLINATIONS_GATEWAY_URL` | no | OpenAI-compatible gateway base, default `https://api.pollinations.ai/v1` |
@@ -287,7 +321,7 @@ Copy `.env.example` to `.env`. The table below matches that file exactly.
 | `LOG_DIR` | no | Log directory |
 | `CLOUDFLARE_PAGES_PROJECT` | no | Cloudflare Pages project used by the deploy pipeline |
 
-\* Required only for the corresponding deployment target.
+\* Required only for the corresponding deployment target. `DATABASE_URL` is required for a production job store; without it the Hub uses PGlite (development only).
 
 Never commit `.env`. Only `.env.example` belongs in git.
 
@@ -311,11 +345,27 @@ Never commit `.env`. Only `.env.example` belongs in git.
 │   ├── deploy-pipeline.js      # Clone/pull template, Vercel + Cloudflare deploy
 │   ├── drive-loop.js           # Unattended seat polling
 │   └── setup-seats.js          # Register seats and delegations
+├── docs
+│   └── architecture.md         # ZAP v1 repository assessment and roadmap
+├── migrations
+│   └── 001_zap_v1.sql          # ZAP v1 schema
 ├── seats
 │   └── config.json             # Seats, delegations, pipeline config
 ├── server
 │   ├── index.js                # Express + WebSocket AgoraHub server
-│   └── pollinations-client.js  # Pollinations text client
+│   ├── pollinations-client.js  # Pollinations text client
+│   └── lib
+│       ├── api/v1.js           # ZAP v1 REST API
+│       ├── council.js          # Council cycle
+│       ├── db/pool.js          # PostgreSQL / PGlite access
+│       ├── deploy.js           # Free and premium pipelines
+│       ├── images.js           # Image URL + hero copy
+│       ├── qc.js               # QC Council
+│       ├── repositories/       # Jobs, tasks, events, audit, artifacts
+│       └── workflows/          # State machine + engine
+├── tests
+│   ├── integration/            # Persistence and HTTP API tests
+│   └── unit/                   # State machine tests
 ├── tsconfig.json
 ├── vercel.json
 ├── vite.config.ts              # Dev proxy to the hub on :8765

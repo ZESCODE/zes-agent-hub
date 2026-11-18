@@ -83,13 +83,7 @@ flowchart TD
 ```
 
 
----
-
-### 2. ASCII Text Diagram (Fallback)
-If you are pasting this into a system that does not support Mermaid rendering (like a basic text editor or an older wiki), use this ASCII version.
-
-```markdown
-# ZES.codes Free-Tier Pipeline (Text Schematic)
+### ZES Free-Tier Pipeline (Text Schematic)
 
 [ User ]
    │

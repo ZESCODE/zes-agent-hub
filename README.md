@@ -82,7 +82,7 @@ flowchart TD
 
 ```
 
-
+---
 ### ZES Free-Tier Pipeline (Text Schematic)
 
 [ User ]

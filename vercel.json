@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "agent-hub/server/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/agora/(.*)",
+      "dest": "/agent-hub/server/index.js"
+    },
+    {
+      "src": "/healthz",
+      "dest": "/agent-hub/server/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "POLLINATIONS_API_KEY": "@pollinations-api-key",
+    "KILO_API_KEY": "@kilo-api-key",
+    "AGORA_HUB_ADMIN_KEY": "@agora-hub-admin-key",
+    "VERCEL_API_KEY": "@vercel-api-key",
+    "CLOUDFLARE_API_TOKEN": "@cloudflare-api-token",
+    "CLOUDFLARE_ACCOUNT_ID": "@cloudflare-account-id",
+    "AGORA_HUB_PORT": "3000"
+  }
+}

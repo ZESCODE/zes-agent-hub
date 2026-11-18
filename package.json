@@ -1,0 +1,45 @@
+{
+  "name": "zes-agent-hub",
+  "version": "0.1.0",
+  "description": "Agent orchestration hub for bolt.diy/zes-builder — AgoraHub + Pollinations + Vercel + Cloudflare",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server/index.js",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "agent:setup": "node scripts/setup-seats.js",
+    "agent:drive": "node scripts/drive-loop.js",
+    "agent:council": "node scripts/council-run.js",
+    "deploy:vercel": "vercel --prod",
+    "deploy:cloudflare": "wrangler deploy",
+    "deploy:all": "npm run deploy:vercel && npm run deploy:cloudflare"
+  },
+  "dependencies": {
+    "@pollinations/cli": "^0.1.83",
+    "ai": "^3.4.0",
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "ws": "^8.17.1",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^20.0.0",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/ws": "^8.5.0",
+    "@types/uuid": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

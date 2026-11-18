@@ -16,7 +16,7 @@
 - [Seat Configuration](#-seat-configuration-nicknamemodel)
 - [Architecture](#-architecture)
 - [Pipelines](#-pipelines)
-  - [Pipeline 1: Free Tier (Kimi Template + Cloudflare + QC Council)](#-pipeline-1-free-tier-template--cloudflare--qc-council)
+  - [Pipeline 1: Free Tier (zes template + Cloudflare + QC Council)](#-pipeline-1-free-tier-template--cloudflare--qc-council)
   - [Pipeline 2: Vercel + Cloudflare (Premium)](#-pipeline-2-vercel--cloudflare-premium)
   - [Pipeline 3: Auto-Blog (Planned)](#-pipeline-3-auto-blog-planned)
 - [QC Council](#-qc-council)

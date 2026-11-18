@@ -7,9 +7,8 @@ npm install
 cp .env.example .env    # then fill in POLLINATIONS_API_KEY and deploy credentials
 ```
 
-See [Current Status](./README.md#current-status) before running the council scripts:
-`agent:council`, `agent:drive` and `agent:setup` currently fail with the errors listed in
-[Troubleshooting](./README.md#troubleshooting).
+The council scripts need a valid `POLLINATIONS_API_KEY`; with a dummy key the first
+request hangs. See [Troubleshooting](./README.md#troubleshooting).
 
 ## 1. Start the Hub
 
@@ -129,8 +128,7 @@ Set these variables in the Vercel project:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-`vercel.json` must point at `server/index.js` (see the README deployment section) before
-the deployed function can serve `/healthz` and `/api/agora/*`.
+`vercel.json` routes `/healthz` and `/api/agora/*` to `server/index.js`.
 
 ## 10. Template Reference
 

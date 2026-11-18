@@ -52,22 +52,19 @@ orchestration changes required.
 
 ## Current Status
 
-The repository is a reference implementation and not every documented command is wired
-end to end yet. What exists today:
+The repository is an active reference implementation. What works today:
 
 | Area | State |
 | --- | --- |
-| `server/index.js` (Express + WebSocket hub) | Implemented; one leftover TypeScript cast blocks boot (see [Troubleshooting](#troubleshooting)) |
+| `server/index.js` (Express + WebSocket hub) | Working — `GET /healthz` and `/api/agora/*` respond |
 | `scripts/deploy-pipeline.js` | Implemented (clone/pull template, `vercel --prod`, `wrangler deploy`) |
-| `scripts/council-run.js` | Implemented but currently crashes on `__dirname` under ESM |
-| `scripts/drive-loop.js` | Implemented but currently crashes on `__dirname` under ESM |
-| `scripts/setup-seats.js` | Implemented but currently crashes on `path.toFileURL` |
+| `scripts/council-run.js` | Implemented — requires a valid `POLLINATIONS_API_KEY` |
+| `scripts/drive-loop.js` | Implemented — polls seat inboxes on an interval |
+| `scripts/setup-seats.js` | Implemented — prints the seat and delegation plan |
 | QC Council | Design only — no code in this repository yet |
 | `index.html` | Static HTML template with `{{TITLE}}`, `{{NICHE}}`, `{{HERO_COPY}}`, `{{HERO_IMAGE_URL}}` placeholders |
 
-Fix proposals for the three script/server bugs are tracked in the issue tracker; Phase 3
-of the integration work refactors the council and deploy scripts into importable
-`server/lib/*` modules.
+The package is ESM (`"type": "module"`). QC Council and R2 upload remain roadmap items.
 
 ---
 
@@ -287,7 +284,8 @@ Never commit `.env`. Only `.env.example` belongs in git.
 │   └── pollinations-client.js  # Pollinations text client
 ├── tsconfig.json
 ├── vercel.json
-└── vite.config.ts              # Dev proxy to the hub on :8765
+├── vite.config.ts              # Dev proxy to the hub on :8765
+└── wrangler.toml               # Workers Assets config for dist/
 ```
 
 ---
@@ -325,33 +323,26 @@ or run the hub as a long-lived Node process (Docker) instead.
 npm run deploy:cloudflare
 ```
 
-The repository does not ship a `wrangler.toml` yet; add one (or pass the project name
-explicitly) before using this command.
+`wrangler.toml` deploys the static build in `dist/` as Workers Assets. The Express hub
+is a long-lived Node process, so run it separately (Docker or a Node host) or port the
+routes to a Worker before expecting `/api/agora/*` on Cloudflare.
 
 ---
 
 ## Troubleshooting
-
-**`SyntaxError: missing ) after argument list` when starting the server.**
-`server/index.js:128` still contains a TypeScript cast (`parseInt(limit as string)`).
-Remove `as string` to boot the server.
-
-**`ReferenceError: __dirname is not defined in ES module scope`.**
-`scripts/council-run.js` and `scripts/drive-loop.js` use `__dirname` without defining it.
-Add `const __dirname = path.dirname(fileURLToPath(import.meta.url));`.
-
-**`TypeError: path.toFileURL is not a function`.**
-`scripts/setup-seats.js` calls `path.toFileURL`; use `url.fileURLToPath(import.meta.url)`
-instead.
 
 **Pollinations returns HTTP 522.**
 The gateway default `https://api.pollinations.ai/v1` has been observed returning 522.
 Point `POLLINATIONS_GATEWAY_URL` at `https://gen.pollinations.ai/v1`, which serves
 `/chat/completions` and `/models`.
 
-**`MODULE_TYPELESS_PACKAGE_JSON` warning.**
-The code uses ESM syntax without `"type": "module"` in `package.json`. Node 20+ reparses
-it automatically; adding `"type": "module"` removes the warning.
+**Council run hangs or returns 401.**
+`agent:council` and `agent:setup` need a real `POLLINATIONS_API_KEY`; with a dummy
+key the first request never completes.
+
+**Server and scripts look out of sync with the docs.**
+All `server/*.js` and `scripts/*.js` parse and boot as of this revision; run
+`node --check` on a file before assuming a documentation error.
 
 ---
 

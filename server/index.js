@@ -125,7 +125,7 @@ app.get('/api/agora/messages', (req, res) => {
   if (channel) {
     filtered = filtered.filter(m => m.channel === channel);
   }
-  res.json(filtered.slice(-parseInt(limit as string)));
+  res.json(filtered.slice(-parseInt(limit)));
 });
 
 // Inbox for a seat
@@ -136,7 +136,7 @@ app.get('/api/agora/inbox/:seatId', (req, res) => {
     return res.status(404).json({ error: 'Seat not found' });
   }
   res.json(seat.inbox);
-}
+});
 
 // Post message
 app.post('/api/agora/post', (req, res) => {

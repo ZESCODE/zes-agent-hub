@@ -1,0 +1,7 @@
+name = "zes-agent-hub"
+compatibility_date = "2026-11-18"
+
+# `npm run build` emits the static frontend into ./dist
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

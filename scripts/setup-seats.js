@@ -3,8 +3,9 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(path.toFileURL(import.meta.url).pathname);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   const configPath = path.resolve(__dirname, '../seats/config.json');

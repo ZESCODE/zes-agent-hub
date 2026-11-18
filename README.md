@@ -52,9 +52,9 @@ The council is composed of an orchestrator and four council seats, each assigned
 | Seat | Role | Model Assignment | Provider |
 |------|------|-----------------|----------|
 | `castor` | Orchestrator | `castor@deepseek-v4.1-flash` | Pollinations |
-| `john` | Council | `john@gpt-6-astra` | Pollinations / Kilo |
-| `siti` | Council | `siti@claude-opus-5.5` | Pollinations / Kilo |
-| `laurent` | Council | `laurent@grok-4.7` | Pollinations / Kilo |
+| `john` | Council | `john@gpt-6-astra` | Pollinations / openai |
+| `siti` | Council | `siti@claude-opus-5.5` | Pollinations /  |
+| `laurent` | Council | `laurent@grok-4.7` | Pollinations / x |
 | `labu` | Council | `labu@deepseek-v4.1-flash` | Pollinations |
 
 Seat definitions live in [`seats/config.json`](./seats/config.json). Each seat can be overridden via environment variables (`SEAT_CASTOR_MODEL`, `SEAT_JOHN_MODEL`, etc.) without editing code.

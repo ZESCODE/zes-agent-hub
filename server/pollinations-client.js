@@ -4,7 +4,7 @@
 import fetch from 'node-fetch';
 
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
-const POLLINATIONS_GATEWAY_URL = process.env.POLLINATIONS_GATEWAY_URL || 'https://api.pollinations.ai/v1';
+const POLLINATIONS_GATEWAY_URL = process.env.POLLINATIONS_GATEWAY_URL || 'https://gen.pollinations.ai/v1';
 
 if (!POLLINATIONS_API_KEY) {
   console.warn('[pollinations-client] POLLINATIONS_API_KEY not set — model calls will fail');
@@ -50,6 +50,42 @@ export async function pollinationsGenText(model, prompt, options = {}) {
  * List available Pollinations models
  * @returns {Promise<Array>}
  */
+/**
+ * Generate text from a full message array (supports vision content).
+ * @param {string} model - Pollinations model id
+ * @param {Array<Object>} messages - OpenAI-style messages
+ * @param {Object} options - Additional options
+ * @returns {Promise<{content: string, model: string, tokens: number}>}
+ */
+export async function pollinationsGenChat(model, messages, options = {}) {
+  const response = await fetch(`${POLLINATIONS_GATEWAY_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${POLLINATIONS_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: options.temperature ?? 0.2,
+      max_tokens: options.maxTokens || 1024,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Pollinations API error: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  return {
+    content: data.choices?.[0]?.message?.content || '',
+    model: data.model || model,
+    tokens: data.usage?.total_tokens || 0,
+  };
+}
+
 export async function pollinationsListModels() {
   const response = await fetch(`${POLLINATIONS_GATEWAY_URL}/models`, {
     headers: {

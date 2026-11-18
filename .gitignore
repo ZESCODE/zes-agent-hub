@@ -44,3 +44,6 @@ coverage/
 
 # Vercel
 .vercel
+
+# Rendered pipeline output
+.zes-builds/

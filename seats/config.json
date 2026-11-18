@@ -12,8 +12,8 @@
       "id": "castor",
       "type": "operator",
       "role": "orchestrator",
-      "nicknameModel": "castor@deepseek-v4.1-flash",
-      "model": "deepseek-v4.1-flash",
+      "nicknameModel": "castor@deepseek/deepseek-v4.1-flash",
+      "model": "deepseek/deepseek-v4.1-flash",
       "provider": "pollinations",
       "mission": "Orchestrator seat — receives user prompts, routes to council channel, synthesizes consensus, directs execution, posts final results",
       "capabilities": ["routing", "synthesis", "task-delegation", "result-aggregation", "vercel-deploy", "cloudflare-deploy"]
@@ -22,8 +22,8 @@
       "id": "john",
       "type": "member",
       "role": "council",
-      "nicknameModel": "john@gpt-6-astra",
-      "model": "gpt-6-astra",
+      "nicknameModel": "john@openai/gpt-6-astra",
+      "model": "openai/gpt-6-astra",
       "provider": "pollinations",
       "mission": "Council member — strategic analysis, architecture planning, high-level decision making",
       "capabilities": ["strategy", "architecture", "decision-making", "planning"]
@@ -32,8 +32,8 @@
       "id": "siti",
       "type": "member",
       "role": "council",
-      "nicknameModel": "siti@claude-opus-5.5",
-      "model": "claude-opus-5.5",
+      "nicknameModel": "siti@openai/gpt-6.1-terra",
+      "model": "openai/gpt-6.1-terra",
       "provider": "pollinations",
       "mission": "Council member — creative direction, content strategy, user experience design",
       "capabilities": ["creative", "content", "ux-design", "writing"]
@@ -42,8 +42,8 @@
       "id": "laurent",
       "type": "member",
       "role": "council",
-      "nicknameModel": "laurent@grok-4.7",
-      "model": "grok-4.7",
+      "nicknameModel": "laurent@x-ai/grok-4.6",
+      "model": "x-ai/grok-4.6",
       "provider": "pollinations",
       "mission": "Council member — technical implementation, code review, system architecture",
       "capabilities": ["implementation", "code-review", "system-design", "debugging"]
@@ -52,8 +52,8 @@
       "id": "labu",
       "type": "member",
       "role": "council",
-      "nicknameModel": "labu@deepseek-v4.1-flash",
-      "model": "deepseek-v4.1-flash",
+      "nicknameModel": "labu@deepseek/deepseek-v4.1-flash",
+      "model": "deepseek/deepseek-v4.1-flash",
       "provider": "pollinations",
       "mission": "Council member — deployment coordination, Vercel + Cloudflare pipeline management, infrastructure",
       "capabilities": ["deployment", "infrastructure", "vercel", "cloudflare", "devops"]
@@ -87,21 +87,21 @@
   ],
   "pollinations": {
     "apiKeyEnv": "POLLINATIONS_API_KEY",
-    "apiBase": "https://api.pollinations.ai",
-    "gatewayUrl": "https://api.pollinations.ai/v1",
+    "apiBase": "https://gen.pollinations.ai",
+    "gatewayUrl": "https://gen.pollinations.ai/v1",
     "models": {
-      "castor": "deepseek-v4.1-flash",
-      "john": "gpt-6-astra",
-      "siti": "claude-opus-5.5",
-      "laurent": "grok-4.7",
-      "labu": "deepseek-v4.1-flash"
+      "castor": "deepseek/deepseek-v4.1-flash",
+      "john": "openai/gpt-6-astra",
+      "siti": "openai/gpt-6.1-terra",
+      "laurent": "x-ai/grok-4.6",
+      "labu": "deepseek/deepseek-v4.1-flash"
     }
   },
   "kilo": {
     "apiKeyEnv": "KILO_API_KEY",
     "gatewayUrl": "https://api.kilo.ai/api/gateway",
     "fallbackModels": [
-      "kilo-deepseek-v4.1-flash",
+      "kilo-deepseek/deepseek-v4.1-flash",
       "kilo-gpt-6-astra",
       "kilo-claude-opus-5.5",
       "kilo-grok-4.7"

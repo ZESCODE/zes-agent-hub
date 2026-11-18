@@ -2,7 +2,7 @@ services:
   zes-agent-hub:
     build: .
     ports:
-      - "8765:8765"
+      - "10000:10000"
       - "5173:5173"
     env_file:
       - .env

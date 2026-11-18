@@ -1,21 +1,18 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@9
-
 # Copy dependency files
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies (no lockfile is committed, so `npm ci` is not available)
+RUN npm install --omit=dev
 
 # Copy source code
 COPY . .
 
-# Expose ports
-EXPOSE 8765 5173
+# Expose the port the hub listens on
+EXPOSE 10000
 
 # Start the hub server
 CMD ["node", "server/index.js"]

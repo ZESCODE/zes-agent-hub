@@ -8,11 +8,23 @@
   ],
   "routes": [
     {
-      "src": "/api/agora/(.*)",
+      "src": "/api/(.*)",
       "dest": "/server/index.js"
     },
     {
       "src": "/healthz",
+      "dest": "/server/index.js"
+    },
+    {
+      "src": "/health",
+      "dest": "/server/index.js"
+    },
+    {
+      "src": "/ready",
+      "dest": "/server/index.js"
+    },
+    {
+      "src": "/metrics",
       "dest": "/server/index.js"
     },
     {
@@ -27,6 +39,7 @@
     "VERCEL_API_KEY": "@vercel-api-key",
     "CLOUDFLARE_API_TOKEN": "@cloudflare-api-token",
     "CLOUDFLARE_ACCOUNT_ID": "@cloudflare-account-id",
-    "AGORA_HUB_PORT": "3000"
+    "AGORA_HUB_PORT": "3000",
+    "DATABASE_URL": "@database-url"
   }
 }

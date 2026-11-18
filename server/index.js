@@ -453,7 +453,7 @@ wss.on('connection', (ws) => {
 // Start Server
 // ============================================================================
 
-const PORT = process.env.AGORA_HUB_PORT || 8765;
+const PORT = process.env.PORT || process.env.AGORA_HUB_PORT || 8765;
 httpServer.listen(PORT, () => {
   console.log(`zes-agent-hub listening on http://localhost:${PORT}`);
   console.log(`Seats registered: ${state.seats.size}`);

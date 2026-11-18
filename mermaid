@@ -1,0 +1,48 @@
+# ZES.codes Free-Tier Pipeline Architecture
+
+```mermaid
+flowchart TD
+    %% User & Frontend
+    User([User]) -->|1. Inputs Title & Niche| UI[app.zes.codes\nFrontend UI]
+    UI -->|2. Sends Request| Hub[zes-agent-hub\nOrchestrator]
+
+    %% Image Generation & QC Loop
+    Hub -->|3. Request Image| PollImg[Pollinations Image API]
+    PollImg -->|4. Returns Raw Image| Hub
+    
+    subgraph QC_Council [QC Council & Self-Healing Loop]
+        Hub -->|5. Sends Image for QC| QCAgent[Pollinations Code Agent\nzes-qc-council]
+        QCAgent -->|6a. Parallel Call| ModelA[NVIDIA Super VL]
+        QCAgent -->|6b. Parallel Call| ModelB[Nemotron Omni 30B]
+        ModelA -->|7a. Verdict| QCAgent
+        ModelB -->|7b. Verdict| QCAgent
+        QCAgent -->|8. Consensus JSON\nPass/Fail| Hub
+        
+        Hub -- "If FAIL (Max 3 Retries)\nGenerate New Seed" --> PollImg
+    end
+
+    %% Success Path & Storage
+    Hub -- "If PASS" --> R2[Cloudflare R2\nImage Storage]
+    R2 -->|9. Returns Public Image URL| Hub
+
+    %% Text Generation & Assembly
+    Hub -->|10. Request Copy| PollText[Pollinations Text API\ngpt-oss-20b]
+    PollText -->|11. Returns Hero Copy| Hub
+    
+    Hub -->|12. Inject Data into HTML| Template[Kimi HTML Template]
+    
+    %% Deployment
+    Hub -->|13. Deploy Final HTML| CFPages[Cloudflare Pages API]
+    CFPages -->|14. Returns Live URL| Hub
+    Hub -->|15. Displays Live URL| UI
+    
+    %% Styling
+    classDef frontend fill:#0c0c0c,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef orchestrator fill:#1e1e1e,stroke:#a1a1aa,stroke-width:2px,color:#fff;
+    classDef pollinations fill:#facc15,stroke:#000,stroke-width:2px,color:#000;
+    classDef cloudflare fill:#f97316,stroke:#000,stroke-width:2px,color:#fff;
+    
+    class UI frontend;
+    class Hub orchestrator;
+    class PollImg,PollText,QCAgent,ModelA,ModelB pollinations;
+    class R2,CFPages cloudflare;

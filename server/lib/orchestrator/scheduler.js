@@ -4,6 +4,18 @@
 
 import { routeFor } from '../providers/router.js';
 
+/*
+ * Each task type advances the job through the canonical ZAP v1 workflow chain.
+ * The engine validates every hop against the job state machine.
+ */
+const JOB_PATH_AFTER_TASK = {
+  scout: ['scouted'],
+  design: ['forking', 'forked', 'rebranding'],
+  build: ['reviewing', 'building'],
+  deploy: ['deploying'],
+  verify: ['verifying', 'verified'],
+};
+
 export function createScheduler({
   engine,
   registry,
@@ -11,6 +23,29 @@ export function createScheduler({
   modelRunner,
   logger = () => {},
 }) {
+  async function advanceJob(jobId, states) {
+    for (const state of states) {
+      try {
+        await engine.transitionJob(jobId, state, { reason: `task advanced job to ${state}` });
+      } catch (error) {
+        if (error.name !== 'InvalidTransitionError') {
+          throw error;
+        }
+
+        logger(`[scheduler] job ${jobId} could not enter ${state}: ${error.message}`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async function allTasksSettled(jobId) {
+    const tasks = await repos.tasks.listByJob(jobId);
+
+    return tasks.length > 0 && tasks.every((task) => ['completed', 'cancelled'].includes(task.status));
+  }
+
   /**
    * Execute the next eligible task of a job.
    * @param {string} jobId
@@ -86,6 +121,24 @@ export function createScheduler({
       await repos.tasks.updateStatus(task.id, 'completed', { result: result.result, lockedBy: null, lockedUntil: null });
       await engine.recordEvent(jobId, 'task.completed', { agentId: agent.id, taskType: task.task_type }, { taskId: task.id, agentId: agent.id });
       await engine.recordAudit(jobId, 'task.completed', { actorType: 'agent', actorId: agent.id, resourceType: 'task', resourceId: task.id, details: { latencyMs } });
+
+      const path = JOB_PATH_AFTER_TASK[task.task_type];
+
+      if (path) {
+        await advanceJob(jobId, path);
+      }
+
+      if (await allTasksSettled(jobId)) {
+        try {
+          await engine.transitionJob(jobId, 'completed', { reason: 'all tasks settled' });
+        } catch (error) {
+          if (error.name !== 'InvalidTransitionError') {
+            throw error;
+          }
+
+          logger(`[scheduler] job ${jobId} could not complete: ${error.message}`);
+        }
+      }
 
       return { ran: true, taskId: task.id, agentId: agent.id, result: result.result };
     } catch (error) {

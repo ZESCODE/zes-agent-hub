@@ -167,4 +167,28 @@ describe('milestone 2 — castor orchestration', () => {
     expect(outcome.ran).toBe(false);
     expect(outcome.reason).toMatch(/lease/);
   });
+
+  it('walks the job through the workflow chain to completed', async () => {
+    const job = await newJob();
+    await planner.planJob(job.id);
+
+    const seen = [];
+
+    for (let i = 0; i < 5; i += 1) {
+      const outcome = await scheduler.runNextTask(job.id);
+
+      expect(outcome.ran).toBe(true);
+      const stored = await repos.jobs.findById(job.id);
+      seen.push(stored.status);
+    }
+
+    expect(seen).toEqual(['scouted', 'rebranding', 'building', 'deploying', 'completed']);
+
+    const final = await repos.jobs.findById(job.id);
+    expect(final.status).toBe('completed');
+
+    const usage = await repos.modelUsage.listByJob(job.id);
+    expect(usage.length).toBe(5);
+    expect(usage.every((row) => row.success)).toBe(true);
+  });
 });

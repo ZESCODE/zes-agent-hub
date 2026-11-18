@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}} - {{NICHE}}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; background: #0c0c0c; }
+  .card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+  .card:hover { transform: translateY(-6px); box-shadow: 0 24px 48px rgba(0,0,0,0.5); }
+  .gradient-text { background: linear-gradient(90deg, #fff 0%, #a1a1aa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+</style>
+</head>
+<body class="text-white min-h-screen flex flex-col">
+
+<!-- Header / Navigation -->
+<header class="sticky top-0 z-50 bg-[#0c0c0c]/90 backdrop-blur-xl border-b border-white/[0.06]">
+  <div class="max-w-[1400px] mx-auto px-6 py-5 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <!-- Branding -->
+      <a href="https://zes.codes" class="text-[22px] font-bold tracking-tight gradient-text hover:opacity-80 transition-opacity">ZES.codes</a>
+      <div class="hidden sm:block h-6 w-px bg-white/10"></div>
+      <div class="hidden sm:block">
+        <!-- Dynamic Title & Niche -->
+        <h1 class="text-[15px] font-semibold text-white">{{TITLE}}</h1>
+        <p class="text-[12px] text-white/40 mt-0.5">{{NICHE}}</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="https://app.zes.codes" class="bg-white text-black text-[13px] font-semibold px-4 py-2 rounded-lg hover:bg-white/90 transition-colors shadow-lg shadow-white/10">
+        Build with ZES →
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- Main Content / Hero Section -->
+<main class="flex-1 flex flex-col items-center justify-center px-6 py-16">
+  <div class="max-w-[1200px] w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+    
+    <!-- Text Content -->
+    <div class="space-y-6">
+      <div class="inline-block bg-white/[0.05] border border-white/[0.1] rounded-full px-4 py-1.5 text-[12px] font-medium text-white/60">
+        Welcome to {{TITLE}}
+      </div>
+      <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.1]">
+        {{HERO_COPY}}
+      </h1>
+      <p class="text-[16px] text-white/50 leading-relaxed max-w-lg">
+        We are proud to serve the {{NICHE}} community. Our commitment to quality and excellence sets us apart. Discover what makes us special.
+      </p>
+      <div class="flex gap-4 pt-4">
+        <a href="#contact" class="bg-white text-black text-[14px] font-semibold px-6 py-3 rounded-lg hover:bg-white/90 transition-colors shadow-lg shadow-white/10">
+          Contact Us
+        </a>
+        <a href="#about" class="bg-white/[0.05] text-white text-[14px] font-semibold px-6 py-3 rounded-lg border border-white/[0.1] hover:bg-white/[0.1] transition-colors">
+          Learn More
+        </a>
+      </div>
+    </div>
+
+    <!-- Hero Image -->
+    <div class="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/[0.1] shadow-2xl shadow-black/50">
+      <!-- Dynamic Image URL -->
+      <img src="{{HERO_IMAGE_URL}}" alt="{{TITLE}} hero image" class="w-full h-full object-cover">
+      <!-- Subtle overlay for text readability if needed -->
+      <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="border-t border-white/[0.06] py-8 text-center text-[13px] text-white/30">
+  <p>&copy; 2024 {{TITLE}}. All rights reserved.</p>
+  <p class="mt-1">Powered by <a href="https://zes.codes" class="text-white/50 hover:text-white transition-colors">ZES.codes</a></p>
+</footer>
+
+</body>
+</html>

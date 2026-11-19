@@ -9,9 +9,45 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../migrations');
 
+/*
+ * Build the pg Pool options for a connection string.
+ *
+ * pg parses the connection string and overrides every other option, so an
+ * explicit `ssl` object cannot relax the TLS mode. Hosted Postgres providers
+ * (Supabase, Neon) hand out URLs with `sslmode=require`, whose default in pg
+ * still verifies the certificate chain against the system CA store. That fails
+ * on hosts with a partial CA bundle and, for `require`, is stricter than
+ * libpq: libpq encrypts without verifying the chain.
+ *
+ * The `sslmode` parameter is therefore removed for the modes that mean
+ * "encrypt, do not verify" and TLS is configured explicitly, which reproduces
+ * libpq semantics and works against any hosted Postgres.
+ */
+export function postgresPoolOptions(connectionString) {
+  const options = { connectionString };
+
+  let url;
+
+  try {
+    url = new URL(connectionString);
+  } catch {
+    return options;
+  }
+
+  const sslmode = url.searchParams.get('sslmode');
+
+  if (!sslmode || sslmode === 'require' || sslmode === 'prefer') {
+    url.searchParams.delete('sslmode');
+    options.connectionString = url.toString();
+    options.ssl = { rejectUnauthorized: false };
+  }
+
+  return options;
+}
+
 async function createPostgres(connectionString) {
   const { Pool } = await import('pg');
-  const pool = new Pool({ connectionString });
+  const pool = new Pool(postgresPoolOptions(connectionString));
 
   return {
     kind: 'postgres',

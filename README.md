@@ -380,6 +380,16 @@ Never commit `.env`. Only `.env.example` belongs in git.
 
 ## Deployment
 
+The hub is a long-lived Node process with a WebSocket endpoint, so it needs a host
+that keeps a process running. The production deployment is:
+
+| Piece | Where |
+| --- | --- |
+| Hub | Render service `zes-agent-hub` (free tier, Node 22, region Oregon) |
+| Domain | `hub.zes.codes` → CNAME `zes-agent-hub.onrender.com` (Cloudflare DNS, verified by Render) |
+| Database | Supabase PostgreSQL (project region `ap-northeast-1`) |
+| Entry point | `node scripts/start.js` |
+
 ### Local
 
 ```bash
@@ -387,10 +397,33 @@ npm run dev        # Vite dev server on :5173, proxies /api/agora to :8765
 npm run start      # Hub server on :8765
 ```
 
+### Database
+
+`DATABASE_URL` selects PostgreSQL; without it the hub falls back to PGlite
+(PostgreSQL compiled to WASM). PGlite needs roughly 330 MB of RAM and peaks
+around 1.5 GB while it initialises, so it does not fit a 512 MB instance. Use
+PostgreSQL in production and keep PGlite for development and tests.
+
+```bash
+npm run db:migrate
+```
+
+Use the **connection pooler** endpoint for hosts without IPv6 egress:
+
+```
+postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+```
+
+The direct host `db.<project-ref>.supabase.co` can be IPv6-only, which fails on
+IPv4-only hosts such as Render.
+
+`sslmode=require` is treated as "encrypt without verifying the chain", matching
+libpq. Strict modes (`verify-full`, `verify-ca`) are left untouched.
+
 ### Docker
 
 ```bash
-docker compose up -d
+docker compose up -p
 ```
 
 The compose file expects a `.env` file and mounts `./data` and `./logs`.
@@ -401,9 +434,10 @@ The compose file expects a `.env` file and mounts `./data` and `./logs`.
 npm run deploy:vercel
 ```
 
-`vercel.json` currently points at `agent-hub/server/index.js`, which does not match this
-repository layout. Update the route destinations to `server/index.js` before deploying,
-or run the hub as a long-lived Node process (Docker) instead.
+`vercel.json` routes every `/api/*` path plus `/health`, `/ready` and `/metrics`
+to `server/index.js` and serves the SPA from `index.html` for everything else.
+A Vercel function cannot hold the WebSocket endpoint, so the Agora council needs
+a long-lived host such as Render.
 
 ### Cloudflare
 
@@ -416,6 +450,7 @@ is a long-lived Node process, so run it separately (Docker or a Node host) or po
 routes to a Worker before expecting `/api/agora/*` on Cloudflare.
 
 ---
+
 
 ## Troubleshooting
 

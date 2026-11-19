@@ -14,12 +14,16 @@ import { qcCheck } from './lib/qc.js';
 import { runFreeTier, runPremium } from './lib/deploy.js';
 import { createDatabase, defaultDatabaseOptions, migrate } from './lib/db/pool.js';
 import { createRepositories } from './lib/repositories/index.js';
+import { createWorkflowRepository } from './lib/repositories/workflows.js';
 import { createEngine } from './lib/workflows/engine.js';
 import { createApiRouter } from './lib/api/v1.js';
 import { buildAgentRegistry } from './lib/agents/registry.js';
 import { createPlanner } from './lib/orchestrator/planner.js';
 import { createScheduler } from './lib/orchestrator/scheduler.js';
 import { runTaskWithModel } from './lib/orchestrator/model-runner.js';
+import { createDefinitionService } from './lib/workflows/definition-service.js';
+import { createToolRegistry } from './lib/tools/registry.js';
+import { knownTaskTypes } from './lib/providers/router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +41,7 @@ app.use(express.json());
 const database = await createDatabase(defaultDatabaseOptions());
 const appliedMigrations = await migrate(database);
 const repositories = createRepositories(database);
+const workflowRepositories = createWorkflowRepository(database);
 const workflowEngine = createEngine({
   db: database,
   repos: repositories,
@@ -107,16 +112,31 @@ try {
 }
 
 const agentRegistry = buildAgentRegistry(seatsConfig);
-const planner = createPlanner({ engine: workflowEngine, registry: agentRegistry, logger: (message, detail) => console.log(message, detail || '') });
+const definitionService = createDefinitionService({
+  repos: repositories,
+  workflowRepos: workflowRepositories,
+  engine: workflowEngine,
+  registry: agentRegistry,
+  knownTaskTypes,
+  logger: (message, detail) => console.log(message, detail || ''),
+});
+const planner = createPlanner({
+  engine: workflowEngine,
+  registry: agentRegistry,
+  definitions: definitionService,
+  logger: (message, detail) => console.log(message, detail || ''),
+});
 const scheduler = createScheduler({
   engine: workflowEngine,
   registry: agentRegistry,
   repos: repositories,
   modelRunner: runTaskWithModel,
+  tools: createToolRegistry({ logger: (message, detail) => console.log(message, detail || '') }),
   logger: (message, detail) => console.log(message, detail || ''),
 });
 
 app.locals.registry = agentRegistry;
+app.locals.definitions = definitionService;
 
 app.use(
   '/api/v1',
@@ -127,6 +147,8 @@ app.use(
     registry: agentRegistry,
     planner,
     scheduler,
+    definitions: definitionService,
+    workflowRepos: workflowRepositories,
   }),
 );
 

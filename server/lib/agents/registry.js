@@ -31,7 +31,7 @@ const BUILTIN_AGENTS = [
     provider: 'pollinations',
     model: 'openai/gpt-6-astra',
     tools: ['qc.check', 'github.repository.read'],
-    permissions: ['verification.read', 'qc.run'],
+    permissions: ['model.generate', 'verification.read', 'qc.run'],
     maxConcurrentTasks: 2,
     maxRetries: 1,
     timeoutMs: 120_000,
@@ -47,6 +47,7 @@ const PERMISSION_BY_AGENT = {
   siti: ['model.generate'],
   laurent: ['model.generate', 'builder.project.read'],
   labu: ['model.generate', 'deployment.preview'],
+  verifier: ['model.generate', 'verification.read', 'qc.run'],
 };
 
 export function buildAgentRegistry(config) {

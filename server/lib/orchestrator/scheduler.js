@@ -7,6 +7,7 @@
 // keep the legacy priority order.
 
 import { routeFor } from '../providers/router.js';
+import { ConditionEvaluationError, conditionContext, evaluateCondition } from '../workflows/conditions.js';
 import { JOB_TRANSITIONS } from '../workflows/transitions.js';
 
 const JOB_PHASE_BY_TASK_TYPE = {
@@ -229,6 +230,131 @@ export function createScheduler({
     return { ran: true, taskId: task.id, waitingApproval: true };
   }
 
+  function targetsOf(edges, nodeId, handle) {
+    return edges
+      .filter((edge) => edge.source === nodeId && (handle === undefined ? true : edge.sourceHandle === handle))
+      .map((edge) => edge.target);
+  }
+
+  function descendantsOf(edges, startNodes) {
+    const adjacency = new Map();
+
+    for (const edge of edges) {
+      if (!adjacency.has(edge.source)) {
+        adjacency.set(edge.source, []);
+      }
+
+      adjacency.get(edge.source).push(edge.target);
+    }
+
+    const seen = new Set();
+    const queue = [...startNodes];
+
+    while (queue.length > 0) {
+      const node = queue.shift();
+
+      if (seen.has(node)) {
+        continue;
+      }
+
+      seen.add(node);
+
+      for (const next of adjacency.get(node) || []) {
+        queue.push(next);
+      }
+    }
+
+    return seen;
+  }
+
+  async function runConditionTask(jobId, task, definition) {
+    const taskNodeId = task.input?.nodeId;
+    const expression = task.input?.expression;
+    const trueHandle = task.input?.trueHandle || 'true';
+    const falseHandle = task.input?.falseHandle || 'false';
+    const edges = definition?.edges || [];
+    const job = await repos.jobs.findById(jobId);
+    const tasks = await repos.tasks.listByJob(jobId);
+
+    let branch;
+
+    try {
+      branch = evaluateCondition(expression, conditionContext({ job, tasks })) ? 'true' : 'false';
+    } catch (error) {
+      if (!(error instanceof ConditionEvaluationError)) {
+        throw error;
+      }
+
+      await engine.transitionTask(task.id, 'blocked', {
+        reason: `condition failed: ${error.message}`,
+        result: { status: 'blocked', summary: error.message },
+      });
+      await repos.tasks.updateStatus(task.id, 'blocked', { lockedBy: null, lockedUntil: null });
+      await engine.recordAudit(jobId, 'task.blocked', {
+        actorType: 'system',
+        actorId: 'scheduler',
+        resourceType: 'task',
+        resourceId: task.id,
+        details: { expression, error: error.message },
+      });
+
+      return { ran: false, taskId: task.id, reason: `condition failed: ${error.message}` };
+    }
+
+    const takenHandle = branch === 'true' ? trueHandle : falseHandle;
+    const untakenHandle = branch === 'true' ? falseHandle : trueHandle;
+
+    await engine.transitionTask(task.id, 'completed', {
+      reason: `condition evaluated to ${branch}`,
+      result: {
+        status: 'completed',
+        summary: `Condition evaluated to ${branch}`,
+        branch,
+        expression,
+      },
+    });
+    await repos.tasks.updateStatus(task.id, 'completed', { lockedBy: null, lockedUntil: null });
+    await engine.recordEvent(jobId, 'task.completed', { branch, expression }, { taskId: task.id });
+
+    const takenTargets = targetsOf(edges, taskNodeId, takenHandle);
+    const alwaysTargets = edges
+      .filter((edge) => edge.source === taskNodeId && edge.sourceHandle === undefined)
+      .map((edge) => edge.target);
+    const untakenTargets = targetsOf(edges, taskNodeId, untakenHandle);
+    const kept = descendantsOf(edges, [...takenTargets, ...alwaysTargets]);
+    const skippedNodes = [...descendantsOf(edges, untakenTargets)].filter((nodeId) => !kept.has(nodeId));
+    const tasksByNode = new Map(tasks.filter((entry) => entry.node_id).map((entry) => [entry.node_id, entry]));
+
+    for (const nodeId of skippedNodes) {
+      const entry = tasksByNode.get(nodeId);
+
+      if (!entry || !['pending', 'failed', 'blocked', 'waiting_approval'].includes(entry.status)) {
+        continue;
+      }
+
+      await repos.tasks.updateStatus(entry.id, 'skipped', {
+        result: { status: 'skipped', summary: `Branch "${untakenHandle}" not taken`, branch: untakenHandle },
+        lockedBy: null,
+        lockedUntil: null,
+      });
+      await engine.recordEvent(jobId, 'task.skipped', { nodeId, branch: untakenHandle }, { taskId: entry.id });
+    }
+
+    if (await allTasksSettled(jobId)) {
+      try {
+        await engine.completeJob(jobId, {
+          requireVerification: definition ? definition.execution?.requireVerification !== false : false,
+          reason: 'all tasks settled',
+        });
+      } catch (error) {
+        logger(`[scheduler] job ${jobId} is not complete yet: ${error.message}`);
+        await engine.recordEvent(jobId, 'job.blocked', { reason: error.message });
+      }
+    }
+
+    return { ran: true, taskId: task.id, branch, skipped: [...skippedNodes] };
+  }
+
   async function runToolTask(jobId, task, definition) {
     const toolName = task.input?.toolName;
     const parameters = task.input?.parameters || {};
@@ -427,6 +553,11 @@ export function createScheduler({
     if (kind === 'tool') {
       await engine.transitionTask(task.id, 'running', { reason: `claimed by ${workerId}` });
       return runToolTask(jobId, claimed, definition);
+    }
+
+    if (kind === 'condition') {
+      await engine.transitionTask(task.id, 'running', { reason: `claimed by ${workerId}` });
+      return runConditionTask(jobId, claimed, definition);
     }
 
     const agent = registry.find(task.assigned_agent);

@@ -384,3 +384,140 @@ describe('approval gates', () => {
     ).rejects.toThrow(/expired/);
   });
 });
+
+describe('condition branches', () => {
+  function branchDefinition(expression) {
+    return {
+      workflowId: uniqueWorkflowId(),
+      version: 1,
+      name: 'Branching workflow',
+      status: 'draft',
+      nodes: [
+        {
+          id: 'n_castor',
+          type: 'castor',
+          position: { x: 0, y: 0 },
+          config: { agentId: 'castor', routingPolicy: { taskType: 'plan' } },
+        },
+        {
+          id: 'n_gate',
+          type: 'condition',
+          position: { x: 200, y: 0 },
+          config: { expression, trueHandle: 'true', falseHandle: 'false' },
+        },
+        {
+          id: 'n_john',
+          type: 'john',
+          position: { x: 400, y: -80 },
+          config: { agentId: 'john', routingPolicy: { taskType: 'scout' } },
+        },
+        {
+          id: 'n_verify',
+          type: 'verifier',
+          position: { x: 400, y: 80 },
+          config: { agentId: 'verifier', routingPolicy: { taskType: 'verify' } },
+        },
+        {
+          id: 'n_out',
+          type: 'output',
+          position: { x: 600, y: 0 },
+          config: { artifactTypes: ['research_report'] },
+        },
+      ],
+      edges: [
+        { id: 'e1', source: 'n_castor', target: 'n_gate' },
+        { id: 'e2', source: 'n_gate', target: 'n_john', sourceHandle: 'true' },
+        { id: 'e3', source: 'n_gate', target: 'n_verify', sourceHandle: 'false' },
+        { id: 'e4', source: 'n_john', target: 'n_out' },
+        { id: 'e5', source: 'n_verify', target: 'n_out' },
+      ],
+      execution: {
+        maxParallelTasks: 1,
+        leaseSeconds: 120,
+        defaultMaxAttempts: 3,
+        defaultBackoffMs: 1000,
+        maxBackoffMs: 10000,
+        requireVerification: false,
+        stopOnFailure: true,
+      },
+      approvals: [],
+      modelPreferences: { defaultPolicy: { taskType: 'scout' }, fallbackEnabled: true },
+      budget: { maxTotalCostUsd: 5, maxModelCalls: 10 },
+      acceptanceCriteria: [],
+    };
+  }
+
+  async function runAll(jobId, definition, limit = 10) {
+    for (let index = 0; index < limit; index += 1) {
+      const result = await scheduler.runNextTask(jobId, { workerId: 'w-branch', definition });
+
+      if (!result.ran) {
+        return result;
+      }
+    }
+
+    return null;
+  }
+
+  it('takes the true branch and skips the false branch', async () => {
+    const definition = branchDefinition("job.status !== null && nodes.n_castor.status === 'completed'");
+    const created = await definitions.createDefinition(definition);
+    const published = await definitions.publishDefinition(created.workflow_id, created.version);
+    const job = await engine.createJob({ title: 'Branch', objective: 'Branch', ownerEmail: 't@zes.codes' });
+    await definitions.attachToJob(job.id, { workflowId: published.workflow_id, version: published.version });
+    await definitions.materializeJob(job.id);
+
+    const run = await workflowRepos.runs.findByJob(job.id);
+    await runAll(job.id, run.graph_snapshot);
+
+    const tasks = await repos.tasks.listByJob(job.id);
+    const byNode = Object.fromEntries(tasks.map((task) => [task.node_id, task.status]));
+
+    expect(byNode.n_gate).toBe('completed');
+    expect(byNode.n_john).toBe('completed');
+    expect(byNode.n_verify).toBe('skipped');
+    expect(byNode.n_out).toBe('completed');
+
+    const conditionTask = tasks.find((task) => task.node_id === 'n_gate');
+    expect(conditionTask.result.branch).toBe('true');
+
+    const skipEvent = await repos.events.listByJob(job.id, { after: 0 });
+    expect(skipEvent.some((event) => event.event_type === 'task.skipped')).toBe(true);
+  });
+
+  it('takes the false branch', async () => {
+    const definition = branchDefinition("inputs.missing === 'never'");
+    const created = await definitions.createDefinition(definition);
+    const published = await definitions.publishDefinition(created.workflow_id, created.version);
+    const job = await engine.createJob({ title: 'Branch', objective: 'Branch', ownerEmail: 't@zes.codes' });
+    await definitions.attachToJob(job.id, { workflowId: published.workflow_id, version: published.version });
+    await definitions.materializeJob(job.id);
+
+    const run = await workflowRepos.runs.findByJob(job.id);
+    await runAll(job.id, run.graph_snapshot);
+
+    const tasks = await repos.tasks.listByJob(job.id);
+    const byNode = Object.fromEntries(tasks.map((task) => [task.node_id, task.status]));
+
+    expect(byNode.n_verify).toBe('completed');
+    expect(byNode.n_john).toBe('skipped');
+    expect(byNode.n_out).toBe('completed');
+  });
+
+  it('blocks the condition task on an invalid expression', async () => {
+    const definition = branchDefinition('process.exit(0)');
+    const created = await definitions.createDefinition(definition);
+    const published = await definitions.publishDefinition(created.workflow_id, created.version);
+    const job = await engine.createJob({ title: 'Branch', objective: 'Branch', ownerEmail: 't@zes.codes' });
+    await definitions.attachToJob(job.id, { workflowId: published.workflow_id, version: published.version });
+    await definitions.materializeJob(job.id);
+
+    const run = await workflowRepos.runs.findByJob(job.id);
+    await runAll(job.id, run.graph_snapshot, 4);
+
+    const tasks = await repos.tasks.listByJob(job.id);
+    const conditionTask = tasks.find((task) => task.node_id === 'n_gate');
+
+    expect(conditionTask.status).toBe('blocked');
+  });
+});

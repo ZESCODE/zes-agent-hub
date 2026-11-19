@@ -159,3 +159,27 @@ describe('ZAP v1 HTTP API', () => {
     expect(body.tools.some((tool) => tool.name === 'qc.check')).toBe(true);
   });
 });
+
+describe('Agora HTTP API', () => {
+  it('rejects unauthenticated access to seat state', async () => {
+    const response = await fetch(`${baseUrl}/api/agora/seats`);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects unauthenticated access to mutating routes', async () => {
+    const response = await fetch(`${baseUrl}/api/agora/post`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel: 'council-channel', message: 'hello', from: 'castor' }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('allows authenticated access', async () => {
+    const response = await fetch(`${baseUrl}/api/agora/seats`, { headers: authHeaders() });
+
+    expect(response.status).toBe(200);
+  });
+});

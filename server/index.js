@@ -171,6 +171,13 @@ app.get('/healthz', (req, res) => {
   res.json({ ok: true, service: 'zes-agent-hub', version: '0.1.0', protocol: 'agora/0.4' });
 });
 
+/*
+ * The Agora surface exposes seat state and mutating operations (post, ack).
+ * It is reachable from the public internet once the hub is deployed, so it
+ * requires the admin key like the pipeline API does.
+ */
+app.use('/api/agora', requireAdmin);
+
 // Roles (who is who)
 app.get('/api/agora/roles', (req, res) => {
   const roles = Array.from(state.seats.entries()).map(([id, seat]) => ({

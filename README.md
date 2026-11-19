@@ -215,10 +215,13 @@ Operational endpoints: `GET /health`, `GET /ready` (database + migration check) 
 The Express server (`server/index.js`) listens on `AGORA_HUB_PORT` (default `8765`) and
 exposes a WebSocket at `/ws`.
 
+The `/api/agora/*` routes require the admin key: `Authorization: Bearer $AGORA_HUB_ADMIN_KEY`.
+They expose seat state and mutating operations, so they are not readable anonymously.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/healthz` | Liveness probe |
-| GET | `/api/agora/roles` | List roles |
+| GET | `/api/agora/roles` | List roles (admin key required) |
 | GET | `/api/agora/seats` | List configured seats |
 | GET | `/api/agora/missions` | List seat missions |
 | GET | `/api/agora/channels` | List channels |

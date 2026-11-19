@@ -69,16 +69,21 @@ Check hub health:
 curl http://localhost:8765/healthz
 ```
 
+Every `/api/agora/*` route requires the admin key. Set `AGORA_HUB_ADMIN_KEY` before
+starting the hub and send it as a bearer token.
+
 List seats:
 
 ```bash
-curl http://localhost:8765/api/agora/seats
+curl http://localhost:8765/api/agora/seats \
+  -H "Authorization: Bearer $AGORA_HUB_ADMIN_KEY"
 ```
 
 Get pipeline status:
 
 ```bash
-curl http://localhost:8765/api/agora/pipeline-status
+curl http://localhost:8765/api/agora/pipeline-status \
+  -H "Authorization: Bearer $AGORA_HUB_ADMIN_KEY"
 ```
 
 Post a message to the council channel:
@@ -86,13 +91,15 @@ Post a message to the council channel:
 ```bash
 curl -X POST http://localhost:8765/api/agora/post \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AGORA_HUB_ADMIN_KEY" \
   -d '{"channel":"council-channel","message":"Review this deployment","from":"castor"}'
 ```
 
 Get a seat inbox:
 
 ```bash
-curl http://localhost:8765/api/agora/inbox/john
+curl http://localhost:8765/api/agora/inbox/john \
+  -H "Authorization: Bearer $AGORA_HUB_ADMIN_KEY"
 ```
 
 ## 7. Seat Reference

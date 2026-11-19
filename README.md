@@ -203,9 +203,31 @@ workflow engine. See [docs/architecture.md](docs/architecture.md) for the assess
 | POST | `/api/v1/approvals/:id/reject` | Reject (single use) |
 | GET | `/api/v1/tools` | Tool registry |
 | GET | `/api/v1/tools/executions/:id` | Tool execution status |
+| GET | `/api/v1/node-types` | Workflow node registry (`zes.workflow/v1`) |
+| POST | `/api/v1/workflows` | Create a workflow definition (draft) |
+| GET | `/api/v1/workflows` | List workflow definitions |
+| GET | `/api/v1/workflows/:workflowId` | Latest version (or `?version=N`) |
+| PUT | `/api/v1/workflows/:workflowId` | Save a new draft version |
+| POST | `/api/v1/workflows/:workflowId/publish` | Publish an immutable version |
+| GET | `/api/v1/workflows/:workflowId/versions` | Version history |
+| POST | `/api/v1/jobs/:jobId/plan` | Plan (definition-driven when a workflow is attached) |
+| GET | `/api/v1/jobs/:jobId/graph` | Definition snapshot plus per-node tasks |
+| POST | `/api/v1/jobs/:jobId/pause` | Pause a job |
 
 Every `/api/v1` route requires `Authorization: Bearer $AGORA_HUB_ADMIN_KEY` and returns
 `401` otherwise. Invalid transitions return `409`.
+
+### Workflow definitions
+
+Create a job from a published definition by passing `workflowId` (and optionally
+`workflowVersion`) to `POST /api/v1/jobs`. The job pins the version's `graph_snapshot`,
+so publishing a new version never changes a running job. Definitions are validated
+server-side: the browser cannot supply model identifiers or permissions, tool nodes are
+allowlisted, and a definition may not contain cycles or unknown node types.
+
+Scheduling is dependency-aware (`depends_on`), backs off exponentially via
+`next_attempt_at`, reclaims expired leases, and requires verifier evidence before a job
+can complete.
 
 Operational endpoints: `GET /health`, `GET /ready` (database + migration check) and
 `GET /metrics` (admin key required).

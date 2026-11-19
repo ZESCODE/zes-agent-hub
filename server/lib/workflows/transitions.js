@@ -24,13 +24,14 @@ export const JOB_TRANSITIONS = {
 };
 
 export const TASK_TRANSITIONS = {
-  pending: ['running', 'cancelled'],
-  running: ['completed', 'failed', 'blocked', 'waiting_approval', 'cancelled'],
-  waiting_approval: ['running', 'cancelled', 'failed'],
+  pending: ['running', 'cancelled', 'skipped'],
+  running: ['completed', 'failed', 'blocked', 'waiting_approval', 'cancelled', 'skipped'],
+  waiting_approval: ['running', 'cancelled', 'failed', 'skipped'],
   completed: [],
-  failed: ['pending', 'cancelled'],
-  blocked: ['pending', 'cancelled'],
+  failed: ['pending', 'cancelled', 'skipped'],
+  blocked: ['pending', 'cancelled', 'skipped'],
   cancelled: [],
+  skipped: [],
 };
 
 export class InvalidTransitionError extends Error {

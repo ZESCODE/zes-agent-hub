@@ -160,7 +160,12 @@ export function materializeTasks(definition, { objective, userObjective } = {}) 
         assignedAgent: 'castor',
         taskType: 'condition',
         objective: `Evaluate condition: ${config.expression}`,
-        input: { nodeId: node.id, expression: config.expression },
+        input: {
+          nodeId: node.id,
+          expression: config.expression,
+          trueHandle: config.trueHandle || 'true',
+          falseHandle: config.falseHandle || 'false',
+        },
         expectedOutputs: ['branch'],
         acceptanceCriteria: ['Condition evaluated without error'],
       });

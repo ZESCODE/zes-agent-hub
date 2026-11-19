@@ -241,6 +241,8 @@ export function validateWorkflowDefinition(input, context = {}) {
     }
   }
 
+  const nodesById = new Map(definition.nodes.map((node) => [node.id, node]));
+
   for (const edge of definition.edges) {
     if (!nodeIds.has(edge.source)) {
       issues.push(issue(`edges.${edge.id}.source`, `Unknown source node: ${edge.source}`));
@@ -248,6 +250,40 @@ export function validateWorkflowDefinition(input, context = {}) {
 
     if (!nodeIds.has(edge.target)) {
       issues.push(issue(`edges.${edge.id}.target`, `Unknown target node: ${edge.target}`));
+    }
+
+    const source = nodesById.get(edge.source);
+
+    if (source?.type === 'condition' && edge.sourceHandle !== undefined) {
+      const config = source.config || {};
+      const handles = [config.trueHandle || 'true', config.falseHandle || 'false'];
+
+      if (!handles.includes(edge.sourceHandle)) {
+        issues.push(
+          issue(
+            `edges.${edge.id}.sourceHandle`,
+            `Condition handles must be one of: ${handles.join(', ')}`,
+          ),
+        );
+      }
+    }
+  }
+
+  for (const node of definition.nodes) {
+    if (node.type === 'condition') {
+      const outgoing = definition.edges.filter((edge) => edge.source === node.id);
+
+      if (outgoing.length === 0) {
+        issues.push(issue(`nodes.${node.id}`, 'Condition node needs at least one outgoing edge'));
+      }
+
+      if (!outgoing.some((edge) => edge.sourceHandle === (node.config.trueHandle || 'true'))) {
+        issues.push(issue(`nodes.${node.id}`, 'Condition node needs an edge on its true handle'));
+      }
+
+      if (!outgoing.some((edge) => edge.sourceHandle === (node.config.falseHandle || 'false'))) {
+        issues.push(issue(`nodes.${node.id}`, 'Condition node needs an edge on its false handle'));
+      }
     }
   }
 

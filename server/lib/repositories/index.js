@@ -92,6 +92,17 @@ export function createRepositories(db) {
       const { rows } = await db.query(sql, params);
       return rows[0] || null;
     },
+    async updateWorkflowLink(id, { workflowDefinitionId, workflowId, workflowVersion, workflowRunId }) {
+      const { rows } = await db.query(
+        `UPDATE jobs
+         SET workflow_definition_id = $2, workflow_id = $3, workflow_version = $4, workflow_run_id = $5, updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [id, workflowDefinitionId, workflowId, workflowVersion, workflowRunId],
+      );
+
+      return rows[0] || null;
+    },
     async remove(id) {
       const { rows } = await db.query('DELETE FROM jobs WHERE id = $1 RETURNING id', [id]);
       return rows[0] || null;
@@ -111,10 +122,14 @@ export function createRepositories(db) {
       acceptanceCriteria = [],
       priority = 5,
       maxAttempts = 3,
+      nodeId = null,
+      nodeType = null,
+      taskKind = 'agent',
+      dependsOn = [],
     }) {
       const { rows } = await db.query(
-        `INSERT INTO tasks (id, job_id, parent_task_id, assigned_agent, task_type, objective, input, expected_outputs, acceptance_criteria, priority, max_attempts)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11)
+        `INSERT INTO tasks (id, job_id, parent_task_id, assigned_agent, task_type, objective, input, expected_outputs, acceptance_criteria, priority, max_attempts, node_id, node_type, task_kind, depends_on)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15::jsonb)
          RETURNING *`,
         [
           id,
@@ -128,6 +143,10 @@ export function createRepositories(db) {
           toJson(acceptanceCriteria),
           priority,
           maxAttempts,
+          nodeId,
+          nodeType,
+          taskKind,
+          toJson(dependsOn),
         ],
       );
 
@@ -163,6 +182,16 @@ export function createRepositories(db) {
       if (patch.lockedUntil !== undefined) {
         params.push(patch.lockedUntil);
         sql += `, locked_until = $${params.length}`;
+      }
+
+      if (patch.nextAttemptAt !== undefined) {
+        params.push(patch.nextAttemptAt);
+        sql += `, next_attempt_at = $${params.length}`;
+      }
+
+      if (patch.dependsOn !== undefined) {
+        params.push(toJson(patch.dependsOn));
+        sql += `, depends_on = $${params.length}::jsonb`;
       }
 
       if (status === 'running') {
@@ -202,7 +231,18 @@ export function createRepositories(db) {
 
       return rows[0];
     },
-    async listByJob(jobId, { limit = 100, offset = 0 } = {}) {
+    async listByJob(jobId, { limit = 100, offset = 0, after = null } = {}) {
+      if (after) {
+        const { rows } = await db.query(
+          `SELECT * FROM agent_events
+           WHERE job_id = $1 AND created_at > (SELECT created_at FROM agent_events WHERE id = $2)
+           ORDER BY created_at ASC LIMIT $3 OFFSET $4`,
+          [jobId, after, limit, offset],
+        );
+
+        return rows;
+      }
+
       const { rows } = await db.query(
         'SELECT * FROM agent_events WHERE job_id = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3',
         [jobId, limit, offset],
@@ -273,6 +313,14 @@ export function createRepositories(db) {
       );
 
       return rows[0] || null;
+    },
+    async findById(id) {
+      const { rows } = await db.query('SELECT * FROM approvals WHERE id = $1', [id]);
+      return rows[0] || null;
+    },
+    async listByJob(jobId) {
+      const { rows } = await db.query('SELECT * FROM approvals WHERE job_id = $1 ORDER BY created_at ASC', [jobId]);
+      return rows;
     },
     async listPending(limit = 50) {
       const { rows } = await db.query(

@@ -3,8 +3,20 @@
 
 import express from 'express';
 import { z } from 'zod';
+import { describeNodeTypes } from '../workflows/node-types.js';
+import { WORKFLOW_CONTRACT_VERSION } from '../workflows/contract.js';
 
-export function createApiRouter({ engine, repos, db, registry, planner, scheduler, logger = () => {} }) {
+export function createApiRouter({
+  engine,
+  repos,
+  db,
+  registry,
+  planner,
+  scheduler,
+  definitions = null,
+  workflowRepos = null,
+  logger = () => {},
+}) {
   const router = express.Router();
 
   router.use((req, res, next) => {
@@ -44,6 +56,8 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
         requireApprovalBeforeFork: z.boolean().optional(),
       })
       .default({}),
+    workflowId: z.string().max(120).optional(),
+    workflowVersion: z.number().int().positive().optional(),
   });
 
   router.post(
@@ -66,10 +80,31 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
         approvalRequired: Boolean(input.preferences.requireApprovalBeforeFork),
       });
 
+      let workflow = null;
+
+      if (input.workflowId && definitions) {
+        try {
+          const attached = await definitions.attachToJob(job.id, {
+            workflowId: input.workflowId,
+            version: input.workflowVersion,
+          });
+
+          workflow = {
+            workflowId: attached.definition.workflowId,
+            version: attached.definition.version,
+            contractVersion: WORKFLOW_CONTRACT_VERSION,
+          };
+        } catch (error) {
+          await repos.jobs.remove(job.id);
+          return res.status(400).json({ error: error.message });
+        }
+      }
+
       return res.status(201).json({
         jobId: job.id,
         status: job.status,
         workflowType: job.workflow_type,
+        workflow,
         createdAt: job.created_at,
       });
     }),
@@ -129,7 +164,10 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
 
       const limit = Math.min(Number(req.query.limit) || 100, 500);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
-      return res.json({ events: await repos.events.listByJob(job.id, { limit, offset }), limit, offset });
+      const after = req.query.after ? String(req.query.after) : null;
+      const events = await repos.events.listByJob(job.id, { limit, offset, after });
+
+      return res.json({ events, limit, offset, after });
     }),
   );
 
@@ -272,7 +310,11 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
       }
 
       try {
-        const result = await planner.planJob(req.params.jobId, parsed.data);
+        const run = workflowRepos ? await workflowRepos.runs.findByJob(req.params.jobId) : null;
+        const definition = run ? run.graph_snapshot : null;
+
+        const result = await planner.planJob(req.params.jobId, { ...parsed.data, definition });
+
         return res.status(201).json({
           jobId: result.jobId,
           reused: result.reused,
@@ -280,6 +322,9 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
             taskId: task.id,
             assignedAgent: task.assigned_agent,
             taskType: task.task_type,
+            nodeId: task.node_id,
+            nodeType: task.node_type,
+            taskKind: task.task_kind,
             acceptanceCriteria: task.acceptance_criteria,
           })),
         });
@@ -313,7 +358,8 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
         return res.status(404).json({ error: 'Job not found' });
       }
 
-      const result = await scheduler.runNextTask(job.id, parsed.data);
+      const run = workflowRepos ? await workflowRepos.runs.findByJob(job.id) : null;
+      const result = await scheduler.runNextTask(job.id, { ...parsed.data, definition: run?.graph_snapshot || null });
       return res.json(result);
     }),
   );
@@ -399,7 +445,6 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
       return res.json({ tools });
     }),
   );
-
   router.get(
     '/tools/executions/:id',
     asyncRoute(async (req, res) => {
@@ -410,6 +455,221 @@ export function createApiRouter({ engine, repos, db, registry, planner, schedule
       }
 
       return res.json({ execution: rows[0] });
+    }),
+  );
+
+  router.get(
+    '/node-types',
+    asyncRoute(async (req, res) => {
+      return res.json({
+        contractVersion: WORKFLOW_CONTRACT_VERSION,
+        nodeTypes: describeNodeTypes(),
+      });
+    }),
+  );
+
+  router.get(
+    '/workflows',
+    asyncRoute(async (req, res) => {
+      if (!workflowRepos) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      const limit = Math.min(Number(req.query.limit) || 50, 200);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const definitions = await workflowRepos.definitions.list({ status: req.query.status, limit, offset });
+
+      return res.json({
+        workflows: definitions.map((definition) => ({
+          id: definition.id,
+          workflowId: definition.workflow_id,
+          version: definition.version,
+          name: definition.name,
+          description: definition.description,
+          status: definition.status,
+          contractVersion: definition.contract_version,
+          createdAt: definition.created_at,
+          publishedAt: definition.published_at,
+        })),
+        limit,
+        offset,
+      });
+    }),
+  );
+
+  router.post(
+    '/workflows',
+    asyncRoute(async (req, res) => {
+      if (!definitions) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      try {
+        const stored = await definitions.createDefinition(req.body ?? {});
+        return res.status(201).json({ workflow: stored });
+      } catch (error) {
+        if (error.name === 'WorkflowValidationError') {
+          return res.status(400).json({ error: error.message, issues: error.issues });
+        }
+
+        throw error;
+      }
+    }),
+  );
+
+  router.get(
+    '/workflows/:workflowId',
+    asyncRoute(async (req, res) => {
+      if (!workflowRepos) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      const version = req.query.version ? Number(req.query.version) : null;
+      const stored = version
+        ? await workflowRepos.definitions.findVersion(req.params.workflowId, version)
+        : await workflowRepos.definitions.latestPublished(req.params.workflowId) ||
+          (await workflowRepos.definitions.latestVersion(req.params.workflowId));
+
+      if (!stored) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+
+      return res.json({ workflow: stored });
+    }),
+  );
+
+  router.put(
+    '/workflows/:workflowId',
+    asyncRoute(async (req, res) => {
+      if (!definitions) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      try {
+        const stored = await definitions.updateDefinition(req.params.workflowId, req.body ?? {});
+        return res.status(201).json({ workflow: stored });
+      } catch (error) {
+        if (error.name === 'WorkflowValidationError') {
+          return res.status(400).json({ error: error.message, issues: error.issues });
+        }
+
+        if (error.message.startsWith('Workflow not found')) {
+          return res.status(404).json({ error: error.message });
+        }
+
+        throw error;
+      }
+    }),
+  );
+
+  router.get(
+    '/workflows/:workflowId/versions',
+    asyncRoute(async (req, res) => {
+      if (!workflowRepos) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      const versions = await workflowRepos.definitions.listVersions(req.params.workflowId);
+      return res.json({ versions });
+    }),
+  );
+
+  router.post(
+    '/workflows/:workflowId/publish',
+    asyncRoute(async (req, res) => {
+      if (!definitions) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      const schema = z.object({ version: z.number().int().positive().optional() });
+      const parsed = schema.safeParse(req.body ?? {});
+
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
+      }
+
+      try {
+        const published = await definitions.publishDefinition(req.params.workflowId, parsed.data.version);
+        return res.json({ workflow: published });
+      } catch (error) {
+        if (error.name === 'WorkflowValidationError') {
+          return res.status(400).json({ error: error.message, issues: error.issues });
+        }
+
+        if (error.message.startsWith('Workflow not found')) {
+          return res.status(404).json({ error: error.message });
+        }
+
+        return res.status(409).json({ error: error.message });
+      }
+    }),
+  );
+
+  router.get(
+    '/jobs/:jobId/graph',
+    asyncRoute(async (req, res) => {
+      if (!workflowRepos) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      const job = await repos.jobs.findById(req.params.jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+
+      const run = await workflowRepos.runs.findByJob(job.id);
+
+      if (!run) {
+        return res.json({ jobId: job.id, workflow: null, nodes: [], tasks: [] });
+      }
+
+      const tasks = await repos.tasks.listByJob(job.id);
+
+      return res.json({
+        jobId: job.id,
+        workflow: {
+          workflowId: run.workflow_id,
+          version: run.workflow_version,
+          contractVersion: run.contract_version,
+          status: run.status,
+          definition: run.graph_snapshot,
+        },
+        tasks: tasks.map((task) => ({
+          taskId: task.id,
+          nodeId: task.node_id,
+          nodeType: task.node_type,
+          taskKind: task.task_kind,
+          assignedAgent: task.assigned_agent,
+          taskType: task.task_type,
+          status: task.status,
+          attempt: task.attempt,
+          dependsOn: task.depends_on,
+        })),
+      });
+    }),
+  );
+
+  router.post(
+    '/jobs/:jobId/pause',
+    asyncRoute(async (req, res) => {
+      const schema = z.object({ reason: z.string().max(500).optional() });
+      const parsed = schema.safeParse(req.body ?? {});
+
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
+      }
+
+      try {
+        const job = await engine.pauseJob(req.params.jobId, { reason: parsed.data.reason || 'paused by operator' });
+        return res.json({ jobId: job.id, status: job.status });
+      } catch (error) {
+        if (error.name === 'InvalidTransitionError') {
+          return res.status(409).json({ error: error.message });
+        }
+
+        throw error;
+      }
     }),
   );
 

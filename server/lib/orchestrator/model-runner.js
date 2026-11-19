@@ -29,7 +29,20 @@ function extractJson(content) {
 /**
  * Run one task through a model and return a structured AgentResult-shaped payload.
  */
-export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000 }) {
+export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000, budget = null, spent = null }) {
+  if (budget && spent) {
+    const cost = Number(spent.totalCostUsd || 0);
+    const calls = Number(spent.modelCalls || 0);
+
+    if (budget.maxTotalCostUsd !== undefined && budget.maxTotalCostUsd !== null && cost >= budget.maxTotalCostUsd) {
+      throw new Error(`Budget exhausted: ${cost.toFixed(4)} USD spent of ${budget.maxTotalCostUsd} USD`);
+    }
+
+    if (budget.maxModelCalls !== undefined && budget.maxModelCalls !== null && calls >= budget.maxModelCalls) {
+      throw new Error(`Budget exhausted: ${calls} model calls of ${budget.maxModelCalls}`);
+    }
+  }
+
   const instruction = [
     SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}, a ${agent.role} agent.`,
     `Task objective: ${task.objective}`,
@@ -63,6 +76,17 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
     },
     inputTokens: response.tokens ? Math.round(response.tokens * 0.7) : null,
     outputTokens: response.tokens ? Math.round(response.tokens * 0.3) : null,
+    estimatedCost: estimateCost(response.tokens),
     timeoutMs,
   };
+}
+
+const COST_PER_MILLION_TOKENS = 0.5;
+
+function estimateCost(tokens) {
+  if (!tokens) {
+    return 0;
+  }
+
+  return Number(((tokens / 1_000_000) * COST_PER_MILLION_TOKENS).toFixed(6));
 }

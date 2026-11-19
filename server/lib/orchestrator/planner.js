@@ -48,11 +48,11 @@ const PLAN_TEMPLATES = {
 
 const DEFAULT_PLAN = PLAN_TEMPLATES.scout_fork_build_sell;
 
-export function createPlanner({ engine, registry, logger = () => {} }) {
+export function createPlanner({ engine, registry, definitions = null, logger = () => {} }) {
   /**
    * Create the task plan for a job.
    * @param {string} jobId
-   * @param {{taskType?: string, template?: string}} options
+   * @param {{taskType?: string, template?: string, definition?: object}} options
    */
   async function planJob(jobId, options = {}) {
     const job = await engine.getJob(jobId);
@@ -61,17 +61,21 @@ export function createPlanner({ engine, registry, logger = () => {} }) {
       throw new Error(`Job not found: ${jobId}`);
     }
 
+    const existing = await engine.listTasks(jobId);
+
+    if (existing.length > 0) {
+      return { jobId, tasks: existing, reused: true };
+    }
+
+    if (options.definition) {
+      return planFromDefinition(jobId, job, options.definition);
+    }
+
     const template = options.template || job.workflow_type || 'scout_fork_build_sell';
     const steps = PLAN_TEMPLATES[template] || DEFAULT_PLAN;
 
     if (job.status === 'requested') {
       await engine.transitionJob(jobId, 'planning', { reason: 'castor planning started' });
-    }
-
-    const existing = await engine.listTasks(jobId);
-
-    if (existing.length > 0) {
-      return { jobId, tasks: existing, reused: true };
     }
 
     const tasks = [];
@@ -101,6 +105,18 @@ export function createPlanner({ engine, registry, logger = () => {} }) {
     await engine.transitionJob(jobId, 'scouting', { reason: 'plan created' });
 
     return { jobId, tasks, reused: false };
+  }
+
+  /**
+   * Materialise the tasks of a job from its attached workflow definition.
+   */
+  async function planFromDefinition(jobId, job, definition) {
+    if (definitions) {
+      const materialized = await definitions.materializeJob(jobId);
+      return { jobId, tasks: materialized.tasks, reused: false, definitionId: definition.workflowId };
+    }
+
+    throw new Error('Workflow definitions are not available');
   }
 
   return { planJob, templates: Object.keys(PLAN_TEMPLATES) };

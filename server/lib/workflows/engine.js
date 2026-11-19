@@ -51,6 +51,10 @@ export function createEngine({ db, repos, logger = () => {} }) {
       acceptanceCriteria: input.acceptanceCriteria || [],
       priority: input.priority ?? 5,
       maxAttempts: input.maxAttempts ?? 3,
+      nodeId: input.nodeId || null,
+      nodeType: input.nodeType || null,
+      taskKind: input.taskKind || 'agent',
+      dependsOn: input.dependsOn || [],
     });
 
     await recordEvent(jobId, 'task.created', { taskType: task.task_type, assignedAgent: task.assigned_agent }, { taskId: task.id, agentId: task.assigned_agent });
@@ -122,6 +126,21 @@ export function createEngine({ db, repos, logger = () => {} }) {
       decidedById = user.id;
     }
 
+    const existing = await repos.approvals.findById(approvalId);
+
+    if (!existing) {
+      throw new Error('Approval not found or already decided');
+    }
+
+    if (existing.status !== 'pending') {
+      throw new Error(`Approval ${approvalId} was already decided (${existing.status})`);
+    }
+
+    if (existing.expires_at && new Date(existing.expires_at).getTime() <= Date.now()) {
+      await repos.approvals.decide(approvalId, { status: 'expired', decidedBy: decidedById, decisionReason: 'expired' });
+      throw new Error(`Approval ${approvalId} expired`);
+    }
+
     const approval = await repos.approvals.decide(approvalId, { status, decidedBy: decidedById, decisionReason });
 
     if (!approval) {
@@ -129,7 +148,7 @@ export function createEngine({ db, repos, logger = () => {} }) {
     }
 
     await recordEvent(approval.job_id, `approval.${status}`, { approvalId, decisionReason }, { taskId: approval.task_id });
-    await recordAudit(approval.job_id, `approval.${status}`, { actorType: 'user', actorId: decidedById, resourceType: 'approval', resourceId: approvalId, details: { decisionReason } });
+    await recordAudit(approval.job_id, `approval.${status}`, { actorType: 'user', actorId: decidedById, ownerId: null, resourceType: 'approval', resourceId: approvalId, details: { decisionReason } });
 
     return approval;
   }
@@ -139,11 +158,6 @@ export function createEngine({ db, repos, logger = () => {} }) {
    */
   async function resumeJob(jobId) {
     const job = await repos.jobs.findById(jobId);
-
-    if (!job) {
-      throw new Error(`Job not found: ${jobId}`);
-    }
-
     const tasks = await repos.tasks.listByJob(jobId);
     const incomplete = tasks.filter((task) => !['completed', 'cancelled'].includes(task.status));
     const expiredLeases = incomplete.filter((task) => task.locked_until && new Date(task.locked_until) < new Date());
@@ -154,13 +168,87 @@ export function createEngine({ db, repos, logger = () => {} }) {
 
     await recordEvent(jobId, 'job.resumed', { incompleteTasks: incomplete.length, reclaimed: expiredLeases.length });
 
-    return { job, incomplete, expiredLeases };
+    let resumed = job;
+
+    if (job.status === 'paused') {
+      const target = job.metadata?.pausedFrom || 'planning';
+      const metadata = { ...job.metadata };
+      delete metadata.pausedFrom;
+
+      try {
+        resumed = await transitionJob(jobId, target, { reason: 'job resumed' });
+        await repos.jobs.updateStatus(jobId, resumed.status, { metadata });
+      } catch (error) {
+        if (error.name !== 'InvalidTransitionError') {
+          throw error;
+        }
+
+        logger(`[engine] job ${jobId} could not resume into ${target}: ${error.message}`);
+      }
+    }
+
+    return { job: resumed, incomplete, expiredLeases };
   }
 
   async function recordArtifact(jobId, input) {
     const artifact = await repos.artifacts.create({ jobId, ...input });
     await recordEvent(jobId, 'artifact.created', { artifactType: artifact.artifact_type, name: artifact.name }, { taskId: artifact.task_id });
     return artifact;
+  }
+
+  async function pauseJob(jobId, { reason = 'paused by operator' } = {}) {
+    const job = await repos.jobs.findById(jobId);
+
+    if (!job) {
+      throw new Error(`Job not found: ${jobId}`);
+    }
+
+    const metadata = { ...job.metadata, pausedFrom: job.status };
+    await repos.jobs.updateStatus(jobId, job.status, { metadata });
+
+    return transitionJob(jobId, 'paused', { reason });
+  }
+
+  /**
+   * Evidence collected for a job. Verification evidence is produced by the
+   * verifier agent and stored as an artifact of a verification task.
+   */
+  async function verificationEvidence(jobId) {
+    const tasks = await repos.tasks.listByJob(jobId);
+    const artifacts = await repos.artifacts.listByJob(jobId);
+    const verificationTasks = tasks.filter(
+      (task) => task.assigned_agent === 'verifier' && task.status === 'completed',
+    );
+
+    const evidence = artifacts.filter(
+      (artifact) =>
+        verificationTasks.some((task) => task.id === artifact.task_id) ||
+        artifact.artifact_type === 'verification_report',
+    );
+
+    return { verificationTasks, artifacts, evidence };
+  }
+
+  /**
+   * Complete a job. A job never completes without verification evidence when
+   * the workflow requires verification.
+   */
+  async function completeJob(jobId, { requireVerification = true, reason = 'all tasks settled' } = {}) {
+    const job = await repos.jobs.findById(jobId);
+
+    if (!job) {
+      throw new Error(`Job not found: ${jobId}`);
+    }
+
+    if (requireVerification) {
+      const { verificationTasks, evidence } = await verificationEvidence(jobId);
+
+      if (verificationTasks.length === 0 || evidence.length === 0) {
+        throw new Error('Job cannot complete without verification evidence');
+      }
+    }
+
+    return transitionJob(jobId, 'completed', { reason });
   }
 
   async function recordToolExecution(jobId, { taskId = null, toolName, idempotencyKey, requestedBy, input = {} }) {
@@ -192,6 +280,9 @@ export function createEngine({ db, repos, logger = () => {} }) {
     requestApproval,
     decideApproval,
     resumeJob,
+    pauseJob,
+    completeJob,
+    verificationEvidence,
     recordArtifact,
     recordToolExecution,
     recordEvent,

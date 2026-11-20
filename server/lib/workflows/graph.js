@@ -113,7 +113,7 @@ export function materializeTasks(definition, { objective, userObjective } = {}) 
         taskType: config.routingPolicy.taskType,
         objective:
           config.objective ||
-          `${node.label || node.type} contributes to the workflow objective.`,
+          `${node.label || node.type} contributes to: ${userObjective || objective || 'the workflow objective'}`,
         input: {
           nodeId: node.id,
           routingPolicy: config.routingPolicy,

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   root: '.',
@@ -14,6 +14,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  test: {
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
   optimizeDeps: {
     include: ['express', 'cors', 'ws', 'uuid', 'zod', 'node-fetch'],

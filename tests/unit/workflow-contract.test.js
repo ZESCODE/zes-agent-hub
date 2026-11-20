@@ -243,3 +243,107 @@ describe('workflow graph', () => {
     expect(tasks[2].kind).toBe('output');
   });
 });
+
+describe('scout template contract', () => {
+  function scoutDefinition() {
+    return {
+      workflowId: 'scout-zescode-zes-builder',
+      version: 1,
+      name: 'Scout ZESCODE/zes-builder',
+      status: 'draft',
+      nodes: [
+        {
+          id: 'castor_plan',
+          type: 'castor',
+          position: { x: 0, y: 0 },
+          config: {
+            agentId: 'castor',
+            routingPolicy: { taskType: 'plan', complexity: 'high' },
+            objective: 'Plan the evaluation of https://github.com/ZESCODE/zes-builder',
+          },
+        },
+        {
+          id: 'github_read',
+          type: 'github_tool',
+          position: { x: 260, y: 0 },
+          config: {
+            toolName: 'github.repository.read',
+            operation: 'read',
+            parameters: { owner: 'ZESCODE', repo: 'zes-builder' },
+            requiresApproval: false,
+          },
+        },
+        {
+          id: 'john_scout',
+          type: 'john',
+          position: { x: 520, y: 0 },
+          config: {
+            agentId: 'john',
+            routingPolicy: { taskType: 'scout', complexity: 'medium' },
+          },
+        },
+        {
+          id: 'verifier_check',
+          type: 'verifier',
+          position: { x: 780, y: 0 },
+          config: {
+            agentId: 'verifier',
+            routingPolicy: { taskType: 'verify', complexity: 'high' },
+          },
+        },
+        {
+          id: 'report_output',
+          type: 'output',
+          position: { x: 1040, y: 0 },
+          config: { artifactTypes: ['research_report', 'verification_report'] },
+        },
+      ],
+      edges: [
+        { id: 'e1', source: 'castor_plan', target: 'github_read' },
+        { id: 'e2', source: 'github_read', target: 'john_scout' },
+        { id: 'e3', source: 'john_scout', target: 'verifier_check' },
+        { id: 'e4', source: 'verifier_check', target: 'report_output' },
+      ],
+      execution: {
+        maxParallelTasks: 1,
+        leaseSeconds: 120,
+        defaultMaxAttempts: 3,
+        defaultBackoffMs: 1000,
+        maxBackoffMs: 30000,
+        requireVerification: true,
+        stopOnFailure: true,
+      },
+      approvals: [],
+      modelPreferences: { defaultPolicy: { taskType: 'scout' }, fallbackEnabled: true },
+      budget: { maxTotalCostUsd: 5, maxModelCalls: 200 },
+      acceptanceCriteria: [
+        {
+          id: 'criterion_1',
+          description: 'The repository was read through the GitHub tool.',
+          verifierAgentId: 'verifier',
+          required: true,
+        },
+      ],
+    };
+  }
+
+  it('accepts the scout template', () => {
+    const definition = validateWorkflowDefinition(scoutDefinition(), { registry, knownTaskTypes });
+
+    expect(definition.nodes).toHaveLength(5);
+    expect(definition.acceptanceCriteria).toHaveLength(1);
+  });
+
+  it('materialises the scout template in dependency order', () => {
+    const definition = validateWorkflowDefinition(scoutDefinition(), { registry, knownTaskTypes });
+    const tasks = materializeTasks(definition, { objective: 'Evaluate the repository' });
+
+    expect(tasks.map((task) => task.nodeId)).toEqual([
+      'castor_plan',
+      'github_read',
+      'john_scout',
+      'verifier_check',
+      'report_output',
+    ]);
+  });
+});

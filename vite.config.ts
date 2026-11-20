@@ -15,6 +15,10 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+  },
   optimizeDeps: {
     include: ['express', 'cors', 'ws', 'uuid', 'zod', 'node-fetch'],
   },

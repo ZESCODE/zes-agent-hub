@@ -43,12 +43,17 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
     }
   }
 
+  const upstream = Array.isArray(task.input?.upstream) ? task.input.upstream : [];
+
   const instruction = [
     SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}, a ${agent.role} agent.`,
     `Task objective: ${task.objective}`,
+    upstream.length > 0
+      ? `Evidence from earlier steps:\n${JSON.stringify(upstream).slice(0, 12_000)}`
+      : 'Evidence from earlier steps: none yet, work from the task objective alone.',
     `Expected outputs: ${JSON.stringify(task.expected_outputs || [])}`,
     `Acceptance criteria: ${JSON.stringify(task.acceptance_criteria || [])}`,
-    'Respond with JSON only: {"summary": "...", "outputs": ["..."], "issues": ["..."]}.',
+    'Respond with JSON only: {"summary": "...", "outputs": ["..."], "issues": ["..."], "evidence": ["..."]}.',
   ].join('\n\n');
 
   const response = await pollinationsGenChat(
@@ -69,7 +74,7 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
       artifacts: [],
       outputs: parsed?.outputs || [],
       issues: parsed?.issues || [],
-      evidence: [],
+      evidence: Array.isArray(parsed?.evidence) ? parsed.evidence : [],
       requiresApproval: false,
       model: route.model,
       agentId: agent.id,

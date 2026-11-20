@@ -219,11 +219,10 @@ export function createDefinitionService({
     }
 
     const definition = validate(run.graph_snapshot);
-    const contracts = materializeTasks(definition, {
-      objective: run.graph_snapshot.objective,
-    });
-
     const job = await repos.jobs.findById(jobId);
+    const contracts = materializeTasks(definition, {
+      objective: job?.objective || run.graph_snapshot.objective,
+    });
 
     if (job?.status === 'requested') {
       await engine.transitionJob(jobId, 'planning', { reason: 'workflow definition planning started' });

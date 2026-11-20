@@ -9,6 +9,7 @@
 import { routeFor } from '../providers/router.js';
 import { ConditionEvaluationError, conditionContext, evaluateCondition } from '../workflows/conditions.js';
 import { JOB_TRANSITIONS } from '../workflows/transitions.js';
+import { dependenciesOf } from '../workflows/graph.js';
 
 const JOB_PHASE_BY_TASK_TYPE = {
   scout: 'scouted',
@@ -477,6 +478,43 @@ export function createScheduler({
     }
   }
 
+  /**
+   * Results of the tasks this task depends on. Agents need the evidence their
+   * predecessors produced, otherwise they answer without any context.
+   */
+  async function upstreamContext(jobId, task, definition) {
+    if (!definition || !task.node_id) {
+      return [];
+    }
+
+    const dependencies = dependenciesOf(definition).get(task.node_id) || new Set();
+    const tasks = await repos.tasks.listByJob(jobId);
+    const context = [];
+
+    for (const upstream of tasks) {
+      if (!dependencies.has(upstream.node_id)) {
+        continue;
+      }
+
+      if (upstream.status !== 'completed') {
+        continue;
+      }
+
+      const result = upstream.result || {};
+
+      context.push({
+        nodeId: upstream.node_id,
+        taskType: upstream.task_type,
+        summary: result.summary || '',
+        outputs: Array.isArray(result.outputs) ? result.outputs : [],
+        evidence: Array.isArray(result.evidence) ? result.evidence : [],
+        data: result.data ?? result.value ?? null,
+      });
+    }
+
+    return context;
+  }
+
   async function runAgentTask(jobId, task, agent, route, definition) {
     let spent = null;
 
@@ -488,9 +526,18 @@ export function createScheduler({
       };
     }
 
+    const upstream = await upstreamContext(jobId, task, definition);
+    const taskInput = task.input || {};
+
     const result = await modelRunner({
       agent,
-      task,
+      task: {
+        ...task,
+        objective: taskInput.userObjective
+          ? `${task.objective}\n\nWorkflow objective: ${taskInput.userObjective}`
+          : task.objective,
+        input: { ...taskInput, upstream },
+      },
       route,
       timeoutMs: agent.timeoutMs,
       budget: definition?.budget || null,

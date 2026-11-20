@@ -17,7 +17,7 @@ import { createRepositories } from './lib/repositories/index.js';
 import { createWorkflowRepository } from './lib/repositories/workflows.js';
 import { createEngine } from './lib/workflows/engine.js';
 import { createApiRouter } from './lib/api/v1.js';
-import { buildAgentRegistry } from './lib/agents/registry.js';
+import { buildAgentRegistry, permissionsForAgent } from './lib/agents/registry.js';
 import { createPlanner } from './lib/orchestrator/planner.js';
 import { createScheduler } from './lib/orchestrator/scheduler.js';
 import { runTaskWithModel } from './lib/orchestrator/model-runner.js';
@@ -131,7 +131,10 @@ const scheduler = createScheduler({
   registry: agentRegistry,
   repos: repositories,
   modelRunner: runTaskWithModel,
-  tools: createToolRegistry({ logger: (message, detail) => console.log(message, detail || '') }),
+  tools: createToolRegistry({
+    logger: (message, detail) => console.log(message, detail || ''),
+    agentPermissions: permissionsForAgent,
+  }),
   logger: (message, detail) => console.log(message, detail || ''),
 });
 

@@ -5,7 +5,7 @@
 // workflow carries an approval.
 
 import { qcCheck } from '../qc.js';
-import { runFreeTier } from '../deploy.js';
+import { runFreeTier, runPremium } from '../deploy.js';
 
 const TOOL_DEFINITIONS = [
   {
@@ -92,7 +92,27 @@ async function readRepository({ owner, repo, path = '' }) {
   return response.json();
 }
 
-export function createToolRegistry({ logger = () => {} } = {}) {
+/**
+ * Permissions granted to an agent beyond the defaults in the agent registry.
+ * Publishing stays denied unless an operator grants it explicitly.
+ */
+function extraPermissions(logger = () => {}) {
+  const raw = process.env.AGORA_TOOL_PERMISSION_GRANTS;
+
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    logger('[tools] AGORA_TOOL_PERMISSION_GRANTS is not valid JSON');
+    return {};
+  }
+}
+
+export function createToolRegistry({ logger = () => {}, agentPermissions = () => [] } = {}) {
   const enabled = new Set(
     TOOL_DEFINITIONS.filter((tool) => {
       if (!tool.mutating) {
@@ -122,6 +142,19 @@ export function createToolRegistry({ logger = () => {} } = {}) {
     'builder.project.read': async ({ parameters }) => {
       throw new Error(`builder.project.read is not available for project ${parameters.projectId || 'unknown'}`);
     },
+    'deployment.publish': async ({ parameters, logger: log }) => {
+      const target = parameters.target || 'cloudflare';
+      const title = parameters.title || 'ZES Site';
+      const niche = parameters.niche || 'business';
+
+      if (target === 'vercel') {
+        const result = await runPremium({ title, niche, deployTarget: 'vercel', logger: log });
+        return { published: true, ...result };
+      }
+
+      const result = await runFreeTier({ title, niche, templateId: parameters.templateId, dryRun: false, logger: log });
+      return { published: true, ...result };
+    },
     'deployment.preview': async ({ parameters, logger: log }) => {
       const result = await runFreeTier({
         title: parameters.title || 'ZES preview',
@@ -135,15 +168,53 @@ export function createToolRegistry({ logger = () => {} } = {}) {
     },
   };
 
-  async function execute({ toolName, jobId, taskId, parameters = {}, idempotencyKey }) {
+  function grantedPermissions(agentId) {
+    const granted = new Set([
+      ...(agentPermissions(agentId) || []),
+      ...(extraPermissions(logger)[agentId] || []),
+    ]);
+    return granted;
+  }
+
+  function canUse(toolName, agentId) {
+    const definition = TOOL_DEFINITIONS.find((tool) => tool.name === toolName);
+
+    if (!definition) {
+      return { allowed: false, reason: 'unknown_tool', missing: [] };
+    }
+
+    if (!enabled.has(toolName)) {
+      return { allowed: false, reason: 'disabled', missing: definition.permissions || [] };
+    }
+
+    const granted = grantedPermissions(agentId);
+    const missing = (definition.permissions || []).filter((permission) => !granted.has(permission));
+
+    return missing.length > 0
+      ? { allowed: false, reason: 'permission_denied', missing }
+      : { allowed: true, reason: null, missing: [] };
+  }
+
+  async function execute({ toolName, jobId, taskId, agentId, parameters = {}, idempotencyKey }) {
     const definition = TOOL_DEFINITIONS.find((tool) => tool.name === toolName);
 
     if (!definition) {
       throw new Error(`Unknown tool: ${toolName}`);
     }
 
-    if (!enabled.has(toolName)) {
+    const decision = canUse(toolName, agentId);
+
+    if (decision.reason === 'disabled') {
       throw new Error(`Tool ${toolName} is not enabled`);
+    }
+
+    if (!decision.allowed) {
+      const error = new Error(
+        `Agent ${agentId || 'unknown'} is not allowed to use ${toolName}: missing ${decision.missing.join(', ')}`,
+      );
+      error.name = 'ToolPermissionError';
+      error.missingPermissions = decision.missing;
+      throw error;
     }
 
     const implementation = implementations[toolName];
@@ -159,6 +230,7 @@ export function createToolRegistry({ logger = () => {} } = {}) {
 
   return {
     execute,
+    canUse,
     list: () =>
       TOOL_DEFINITIONS.map((tool) => ({
         ...tool,

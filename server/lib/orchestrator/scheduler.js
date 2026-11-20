@@ -419,6 +419,7 @@ export function createScheduler({
         toolName,
         jobId,
         taskId: task.id,
+        agentId: task.assigned_agent,
         parameters,
         idempotencyKey,
       });
@@ -442,11 +443,26 @@ export function createScheduler({
 
       return { ran: true, taskId: task.id, toolName, result };
     } catch (error) {
+      const denied = error.name === 'ToolPermissionError';
+
       await repos.toolExecutions.complete(outcome.execution.id, {
         status: 'failed',
-        errorCode: 'tool_failed',
+        errorCode: denied ? 'tool_permission_denied' : 'tool_failed',
         errorMessage: error.message,
       });
+
+      if (denied) {
+        await repos.tasks.updateStatus(task.id, 'blocked', { lockedBy: null, lockedUntil: null });
+        await engine.recordEvent(jobId, 'task.blocked', { error: error.message, toolName }, { taskId: task.id });
+        await engine.recordAudit(jobId, 'tool.permission_denied', {
+          actorType: 'system',
+          actorId: 'scheduler',
+          resourceType: 'tool_execution',
+          resourceId: outcome.execution.id,
+          details: { toolName, agentId: task.assigned_agent, missing: error.missingPermissions || [] },
+        });
+        return { ran: true, taskId: task.id, blocked: true, error: error.message };
+      }
 
       const attempt = (task.attempt || 0) + 1;
       await repos.tasks.updateStatus(task.id, 'failed', {

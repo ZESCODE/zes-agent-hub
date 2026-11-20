@@ -50,6 +50,10 @@ const PERMISSION_BY_AGENT = {
   verifier: ['model.generate', 'verification.read', 'qc.run'],
 };
 
+export function permissionsForAgent(agentId) {
+  return PERMISSION_BY_AGENT[agentId] || DEFAULT_PERMISSIONS;
+}
+
 export function buildAgentRegistry(config) {
   const definitions = new Map();
 
@@ -63,7 +67,7 @@ export function buildAgentRegistry(config) {
       provider: seat.provider || 'pollinations',
       model: seat.model,
       tools: DEFAULT_TOOLS,
-      permissions: PERMISSION_BY_AGENT[seat.id] || DEFAULT_PERMISSIONS,
+      permissions: permissionsForAgent(seat.id),
       maxConcurrentTasks: seat.id === 'castor' ? 1 : 3,
       maxRetries: 3,
       timeoutMs: 180_000,

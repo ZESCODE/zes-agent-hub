@@ -562,6 +562,35 @@ export function createApiRouter({
     }),
   );
 
+  router.delete(
+    '/workflows/:workflowId',
+    asyncRoute(async (req, res) => {
+      if (!definitions) {
+        return res.status(503).json({ error: 'Workflow definitions are not enabled' });
+      }
+
+      try {
+        const result = await definitions.deleteDefinition(req.params.workflowId);
+        return res.json({
+          workflowId: req.params.workflowId,
+          deletedVersions: result.versions.map((version) => version.version),
+          detachedRuns: result.detachedRuns,
+          detachedJobs: result.detachedJobs,
+        });
+      } catch (error) {
+        if (error.name === 'WorkflowInUseError') {
+          return res.status(409).json({ error: error.message });
+        }
+
+        if (error.message.startsWith('Workflow not found')) {
+          return res.status(404).json({ error: error.message });
+        }
+
+        throw error;
+      }
+    }),
+  );
+
   router.get(
     '/workflows/:workflowId/versions',
     asyncRoute(async (req, res) => {

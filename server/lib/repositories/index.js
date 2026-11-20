@@ -59,6 +59,11 @@ export function createRepositories(db) {
       const { rows } = await db.query(sql, params);
       return rows;
     },
+    async listByWorkflow(workflowId) {
+      const { rows } = await db.query('SELECT * FROM jobs WHERE workflow_id = $1 ORDER BY created_at DESC', [workflowId]);
+      return rows;
+    },
+
     async updateStatus(id, status, patch = {}) {
       const params = [id, status];
       let sql = 'UPDATE jobs SET status = $2, updated_at = NOW()';
@@ -160,6 +165,11 @@ export function createRepositories(db) {
       const { rows } = await db.query('SELECT * FROM tasks WHERE job_id = $1 ORDER BY created_at ASC', [jobId]);
       return rows;
     },
+    async listByWorkflow(workflowId) {
+      const { rows } = await db.query('SELECT * FROM jobs WHERE workflow_id = $1 ORDER BY created_at DESC', [workflowId]);
+      return rows;
+    },
+
     async updateStatus(id, status, patch = {}) {
       const params = [id, status];
       let sql = 'UPDATE tasks SET status = $2, updated_at = NOW()';

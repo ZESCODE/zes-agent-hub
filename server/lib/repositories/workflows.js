@@ -103,6 +103,30 @@ export function createWorkflowRepository(db) {
       return rows;
     },
 
+    async deleteWorkflow(workflowId) {
+      return db.transaction(async ({ query }) => {
+        const runs = await query('SELECT id FROM workflow_runs WHERE workflow_id = $1', [workflowId]);
+        const jobs = await query('SELECT id, status FROM jobs WHERE workflow_id = $1', [workflowId]);
+
+        await query(
+          'UPDATE jobs SET workflow_definition_id = NULL, workflow_run_id = NULL WHERE workflow_id = $1',
+          [workflowId],
+        );
+        await query('DELETE FROM workflow_runs WHERE workflow_id = $1', [workflowId]);
+
+        const deleted = await query(
+          'DELETE FROM workflow_definitions WHERE workflow_id = $1 RETURNING id, version, status',
+          [workflowId],
+        );
+
+        return {
+          versions: deleted.rows,
+          detachedRuns: runs.rows.length,
+          detachedJobs: jobs.rows.length,
+        };
+      });
+    },
+
     async publish(id) {
       const { rows } = await db.query(
         `UPDATE workflow_definitions

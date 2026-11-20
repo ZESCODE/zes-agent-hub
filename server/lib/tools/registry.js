@@ -69,10 +69,6 @@ async function readRepository({ owner, repo, path = '' }) {
     throw new Error('owner and repo are required');
   }
 
-  const url = path
-    ? `https://api.github.com/repos/${owner}/${repo}/contents/${path}`
-    : `https://api.github.com/repos/${owner}/${repo}`;
-
   const headers = {
     Accept: 'application/vnd.github+json',
     'User-Agent': 'zes-agent-hub',
@@ -82,21 +78,37 @@ async function readRepository({ owner, repo, path = '' }) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, { headers });
+  const request = async (url) => {
+    const response = await fetch(url, { headers });
 
-  if (!response.ok) {
-    if (response.status === 404 && !token) {
-      throw new Error(`GitHub returned 404 for ${owner}/${repo}: the repository is private or does not exist`);
+    if (!response.ok) {
+      if (response.status === 404 && !token) {
+        throw new Error(`GitHub returned 404 for ${owner}/${repo}: the repository is private or does not exist`);
+      }
+
+      if (response.status === 403 && !token) {
+        throw new Error('GitHub rate limit reached for anonymous reads; configure GITHUB_TOKEN');
+      }
+
+      throw new Error(`GitHub returned ${response.status}`);
     }
 
-    if (response.status === 403 && !token) {
-      throw new Error('GitHub rate limit reached for anonymous reads; configure GITHUB_TOKEN');
-    }
+    return response.json();
+  };
 
-    throw new Error(`GitHub returned ${response.status}`);
+  if (path) {
+    return request(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`);
   }
 
-  return response.json();
+  const repository = await request(`https://api.github.com/repos/${owner}/${repo}`);
+  const entries = await request(`https://api.github.com/repos/${owner}/${repo}/contents/`);
+
+  return {
+    ...repository,
+    files: Array.isArray(entries)
+      ? entries.map((entry) => ({ name: entry.name, type: entry.type, size: entry.size ?? null }))
+      : [],
+  };
 }
 
 /**

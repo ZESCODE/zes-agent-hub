@@ -540,6 +540,7 @@ export function createScheduler({
     }
 
     const upstream = await upstreamContext(jobId, task, definition);
+    const artifacts = await repos.artifacts.listByJob(jobId);
     const taskInput = task.input || {};
 
     const result = await modelRunner({
@@ -549,7 +550,15 @@ export function createScheduler({
         objective: taskInput.userObjective
           ? `${task.objective}\n\nWorkflow objective: ${taskInput.userObjective}`
           : task.objective,
-        input: { ...taskInput, upstream },
+        input: {
+          ...taskInput,
+          upstream,
+          artifacts: artifacts.map((artifact) => ({
+            type: artifact.artifact_type,
+            name: artifact.name,
+            metadata: artifact.metadata,
+          })),
+        },
       },
       route,
       timeoutMs: agent.timeoutMs,

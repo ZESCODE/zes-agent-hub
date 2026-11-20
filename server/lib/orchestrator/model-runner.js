@@ -49,7 +49,7 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
     SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}, a ${agent.role} agent.`,
     `Task objective: ${task.objective}`,
     upstream.length > 0
-      ? `Evidence from earlier steps:\n${JSON.stringify(upstream).slice(0, 12_000)}`
+      ? `Evidence from earlier steps, use it as the factual basis of your answer:\n${JSON.stringify(upstream).slice(0, 12_000)}`
       : 'Evidence from earlier steps: none yet, work from the task objective alone.',
     `Expected outputs: ${JSON.stringify(task.expected_outputs || [])}`,
     `Acceptance criteria: ${JSON.stringify(task.acceptance_criteria || [])}`,

@@ -319,7 +319,7 @@ describe('scout template contract', () => {
       acceptanceCriteria: [
         {
           id: 'criterion_1',
-          description: 'The repository was read through the GitHub tool.',
+          description: 'The report names the top level files the GitHub tool returned.',
           verifierAgentId: 'verifier',
           required: true,
         },

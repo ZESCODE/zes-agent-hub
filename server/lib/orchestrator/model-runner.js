@@ -44,6 +44,7 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
   }
 
   const upstream = Array.isArray(task.input?.upstream) ? task.input.upstream : [];
+  const artifacts = Array.isArray(task.input?.artifacts) ? task.input.artifacts : [];
 
   const instruction = [
     SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}, a ${agent.role} agent.`,
@@ -51,6 +52,9 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
     upstream.length > 0
       ? `Evidence from earlier steps, use it as the factual basis of your answer:\n${JSON.stringify(upstream).slice(0, 12_000)}`
       : 'Evidence from earlier steps: none yet, work from the task objective alone.',
+    artifacts.length > 0
+      ? `Artifacts collected in this run:\n${JSON.stringify(artifacts).slice(0, 8_000)}`
+      : 'Artifacts collected in this run: none yet.',
     `Expected outputs: ${JSON.stringify(task.expected_outputs || [])}`,
     `Acceptance criteria: ${JSON.stringify(task.acceptance_criteria || [])}`,
     'Respond with JSON only: {"summary": "...", "outputs": ["..."], "issues": ["..."], "evidence": ["..."]}.',

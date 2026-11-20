@@ -621,6 +621,10 @@ export function createScheduler({
 
     const kind = task.task_kind || 'agent';
 
+    if (claimed.status === 'failed') {
+      await engine.transitionTask(claimed.id, 'pending', { reason: 'retry after backoff' });
+    }
+
     if (kind === 'approval') {
       await engine.transitionTask(task.id, 'running', { reason: `claimed by ${workerId}` });
       return runApprovalTask(jobId, claimed, definition);

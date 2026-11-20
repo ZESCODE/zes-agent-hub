@@ -91,3 +91,50 @@ describe('tool permissions', () => {
     expect(tools.canUse('github.repository.write', 'john')).toMatchObject({ allowed: false, reason: 'disabled' });
   });
 });
+
+describe('tool ownership', () => {
+  it('assigns a tool task to an agent that holds its permissions', async () => {
+    const { materializeTasks } = await import('../../server/lib/workflows/graph.js');
+    const { permissionsForAgent } = await import('../../server/lib/agents/registry.js');
+
+    const definition = {
+      workflowId: 'scout',
+      version: 1,
+      name: 'Scout',
+      status: 'draft',
+      nodes: [
+        {
+          id: 'github_read',
+          type: 'github_tool',
+          position: { x: 0, y: 0 },
+          config: {
+            toolName: 'github.repository.read',
+            operation: 'read',
+            parameters: { owner: 'ZESCODE', repo: 'zes-builder' },
+            requiresApproval: false,
+          },
+        },
+      ],
+      edges: [],
+      execution: {
+        maxParallelTasks: 1,
+        leaseSeconds: 120,
+        defaultMaxAttempts: 3,
+        defaultBackoffMs: 1000,
+        maxBackoffMs: 30000,
+        requireVerification: true,
+        stopOnFailure: true,
+      },
+      approvals: [],
+      modelPreferences: { defaultPolicy: { taskType: 'scout' }, fallbackEnabled: true },
+      budget: { maxTotalCostUsd: 5, maxModelCalls: 200 },
+      acceptanceCriteria: [],
+    };
+
+    const tasks = materializeTasks(definition, { objective: 'Read the repository' });
+    const task = tasks[0];
+
+    expect(task.assignedAgent).toBe('john');
+    expect(permissionsForAgent(task.assignedAgent)).toContain('github.repository.read');
+  });
+});

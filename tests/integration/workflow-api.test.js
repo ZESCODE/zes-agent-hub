@@ -230,6 +230,100 @@ describe('workflow API', () => {
     expect(graphBody.tasks[1].dependsOn).toHaveLength(1);
   });
 
+  it('deletes a workflow and detaches the jobs that used it', async () => {
+    const create = await fetch(`${baseUrl}/api/v1/workflows`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(definition('smoke-delete')),
+    });
+    expect(create.status).toBe(201);
+
+    const publish = await fetch(`${baseUrl}/api/v1/workflows/smoke-delete/publish`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    expect(publish.status).toBe(200);
+
+    const job = await fetch(`${baseUrl}/api/v1/jobs`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        title: 'Delete me',
+        objective: 'Run the workflow that will be deleted',
+        workflowId: 'smoke-delete',
+      }),
+    });
+    const jobBody = await job.json();
+    expect(job.status).toBe(201);
+
+    await fetch(`${baseUrl}/api/v1/jobs/${jobBody.jobId}/cancel`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+
+    const removed = await fetch(`${baseUrl}/api/v1/workflows/smoke-delete`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const removedBody = await removed.json();
+
+    expect(removed.status).toBe(200);
+    expect(removedBody.deletedVersions).toContain(1);
+    expect(removedBody.detachedRuns).toBe(1);
+
+    const lookup = await fetch(`${baseUrl}/api/v1/workflows/smoke-delete`, { headers: authHeaders() });
+    expect(lookup.status).toBe(404);
+
+    const list = await fetch(`${baseUrl}/api/v1/workflows`, { headers: authHeaders() });
+    const listBody = await list.json();
+    expect(listBody.workflows.some((row) => row.workflowId === 'smoke-delete')).toBe(false);
+  });
+
+  it('refuses to delete a workflow that an active job still uses', async () => {
+    const create = await fetch(`${baseUrl}/api/v1/workflows`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(definition('smoke-in-use')),
+    });
+    expect(create.status).toBe(201);
+
+    const publish = await fetch(`${baseUrl}/api/v1/workflows/smoke-in-use/publish`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    expect(publish.status).toBe(200);
+
+    const job = await fetch(`${baseUrl}/api/v1/jobs`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        title: 'Still running',
+        objective: 'Keep this workflow alive',
+        workflowId: 'smoke-in-use',
+      }),
+    });
+    const jobBody = await job.json();
+
+    const removed = await fetch(`${baseUrl}/api/v1/workflows/smoke-in-use`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const removedBody = await removed.json();
+
+    expect(removed.status).toBe(409);
+    expect(removedBody.error).toContain('still used by');
+
+    const cancel = await fetch(`${baseUrl}/api/v1/jobs/${jobBody.jobId}/cancel`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    expect(cancel.status).toBe(200);
+  });
+
   it('pauses a job', async () => {
     const job = await fetch(`${baseUrl}/api/v1/jobs`, {
       method: 'POST',

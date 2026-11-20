@@ -5,6 +5,8 @@
 import { validateWorkflowDefinition, WORKFLOW_CONTRACT_VERSION } from './contract.js';
 import { materializeTasks, taskDependencyEdges } from './graph.js';
 
+const TERMINAL_JOB_STATUSES = ['completed', 'cancelled', 'failed'];
+
 export function createDefinitionService({
   repos,
   workflowRepos,
@@ -76,6 +78,51 @@ export function createDefinitionService({
     });
 
     return stored;
+  }
+
+  /**
+   * Delete every version of a workflow. Jobs that already ran it keep their
+   * tasks and artifacts; only the definition link and the stored snapshot are
+   * removed. A job that is still running blocks the delete.
+   */
+  async function deleteDefinition(workflowId, { actorType = 'user', actorId = 'engine' } = {}) {
+    const versions = await workflowRepos.definitions.listVersions(workflowId);
+
+    if (versions.length === 0) {
+      throw new Error(`Workflow not found: ${workflowId}`);
+    }
+
+    const jobs = await repos.jobs.listByWorkflow(workflowId);
+    const active = jobs.filter((job) => !TERMINAL_JOB_STATUSES.includes(job.status));
+
+    if (active.length > 0) {
+      const error = new Error(
+        `Workflow ${workflowId} is still used by ${active.length} active job(s): ${active
+          .map((job) => `${job.id.slice(0, 8)} (${job.status})`)
+          .join(', ')}`,
+      );
+      error.name = 'WorkflowInUseError';
+      throw error;
+    }
+
+    const result = await workflowRepos.definitions.deleteWorkflow(workflowId);
+
+    await repos.audit.append({
+      actorType,
+      actorId,
+      action: 'workflow.definition.deleted',
+      resourceType: 'workflow_definition',
+      resourceId: workflowId,
+      details: {
+        workflowId,
+        versions: result.versions.map((version) => version.version),
+        detachedRuns: result.detachedRuns,
+        detachedJobs: result.detachedJobs,
+      },
+    });
+
+    logger(`[workflow] definition ${workflowId} deleted (${result.versions.length} version(s))`);
+    return result;
   }
 
   async function publishDefinition(workflowId, version, { actorType = 'user', actorId = 'engine' } = {}) {
@@ -229,6 +276,7 @@ export function createDefinitionService({
   return {
     createDefinition,
     updateDefinition,
+    deleteDefinition,
     publishDefinition,
     resolveDefinition,
     attachToJob,

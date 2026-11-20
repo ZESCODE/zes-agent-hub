@@ -427,6 +427,18 @@ export function createScheduler({
 
       await repos.toolExecutions.complete(outcome.execution.id, { status: 'succeeded', result });
       await repos.tasks.updateStatus(task.id, 'completed', { result, lockedBy: null, lockedUntil: null });
+
+      if (result && typeof result === 'object') {
+        await engine.recordArtifact(jobId, {
+          taskId: task.id,
+          artifactType: 'tool_result',
+          name: `${toolName} result`,
+          storageUri: `zap://jobs/${jobId}/tasks/${task.id}/tool-result`,
+          contentType: 'application/json',
+          metadata: { toolName, parameters, result },
+        });
+      }
+
       await engine.recordEvent(jobId, 'task.completed', { toolName }, { taskId: task.id });
       await engine.recordAudit(jobId, 'tool.executed', {
         actorType: 'agent',
@@ -509,6 +521,7 @@ export function createScheduler({
         outputs: Array.isArray(result.outputs) ? result.outputs : [],
         evidence: Array.isArray(result.evidence) ? result.evidence : [],
         data: result.data ?? result.value ?? null,
+        raw: typeof result === 'object' && result !== null ? result : { value: result },
       });
     }
 

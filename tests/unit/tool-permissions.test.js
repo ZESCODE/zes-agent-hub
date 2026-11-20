@@ -15,19 +15,14 @@ function registry(overrides = {}) {
 }
 
 describe('tool permissions', () => {
-  it('allows a tool when the agent holds every required permission', async () => {
+  it('allows a tool when the agent holds every required permission', () => {
     const tools = registry();
 
-    await expect(
-      tools.execute({
-        toolName: 'github.repository.read',
-        agentId: 'john',
-        jobId: 'job-1',
-        taskId: 'task-1',
-        parameters: { owner: 'ZESCODE', repo: 'zes-builder' },
-        idempotencyKey: 'job-1:task-1:github.repository.read',
-      }),
-    ).rejects.toThrow(/GITHUB_TOKEN|not configured/i);
+    expect(tools.canUse('github.repository.read', 'john')).toEqual({
+      allowed: true,
+      reason: null,
+      missing: [],
+    });
   });
 
   it('denies a tool when the agent misses a permission', async () => {

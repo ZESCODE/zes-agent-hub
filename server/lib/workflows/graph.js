@@ -73,6 +73,21 @@ export function successorsOf(definition, nodeId) {
  * Task contracts for a definition. Agent nodes become model tasks, tool nodes
  * become tool tasks and control nodes become gates that the scheduler waits on.
  */
+/**
+ * The agent that performs a tool. The tool gateway checks this agent's
+ * permissions, so the owner must hold the permissions the tool requires.
+ */
+const TOOL_OWNER = {
+  'qc.check': 'verifier',
+  'github.repository.read': 'john',
+  'github.repository.write': 'john',
+  'research.web': 'john',
+  'builder.project.read': 'laurent',
+  'builder.project.write': 'laurent',
+  'deployment.preview': 'labu',
+  'deployment.publish': 'labu',
+};
+
 export function materializeTasks(definition, { objective, userObjective } = {}) {
   const order = topologicalOrder(definition);
   const nodes = nodeMap(definition);
@@ -176,7 +191,7 @@ export function materializeTasks(definition, { objective, userObjective } = {}) 
     tasks.push({
       ...base,
       kind: 'tool',
-      assignedAgent: 'castor',
+      assignedAgent: TOOL_OWNER[config.toolName] || 'castor',
       taskType: config.operation || 'tool',
       objective: `Run tool ${config.toolName}`,
       input: {

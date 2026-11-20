@@ -43,7 +43,7 @@ const DEFAULT_TOOLS = ['pollinations.text', 'pollinations.image', 'qc.check'];
 const DEFAULT_PERMISSIONS = ['model.generate'];
 const PERMISSION_BY_AGENT = {
   castor: ['model.generate', 'task.assign', 'approval.request'],
-  john: ['model.generate', 'github.repository.read'],
+  john: ['model.generate', 'github.repository.read', 'research.read'],
   siti: ['model.generate'],
   laurent: ['model.generate', 'builder.project.read'],
   labu: ['model.generate', 'deployment.preview'],

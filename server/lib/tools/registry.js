@@ -65,10 +65,6 @@ function githubToken() {
 async function readRepository({ owner, repo, path = '' }) {
   const token = githubToken();
 
-  if (!token) {
-    throw new Error('GITHUB_TOKEN is not configured');
-  }
-
   if (!owner || !repo) {
     throw new Error('owner and repo are required');
   }
@@ -77,15 +73,26 @@ async function readRepository({ owner, repo, path = '' }) {
     ? `https://api.github.com/repos/${owner}/${repo}/contents/${path}`
     : `https://api.github.com/repos/${owner}/${repo}`;
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'zes-agent-hub',
-    },
-  });
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'zes-agent-hub',
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { headers });
 
   if (!response.ok) {
+    if (response.status === 404 && !token) {
+      throw new Error(`GitHub returned 404 for ${owner}/${repo}: the repository is private or does not exist`);
+    }
+
+    if (response.status === 403 && !token) {
+      throw new Error('GitHub rate limit reached for anonymous reads; configure GITHUB_TOKEN');
+    }
+
     throw new Error(`GitHub returned ${response.status}`);
   }
 

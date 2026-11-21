@@ -23,13 +23,25 @@ export function createWorkflowRepository(db) {
       contractVersion,
       definition,
       createdBy = null,
+      ownerPrincipal = null,
     }) {
       const { rows } = await db.query(
         `INSERT INTO workflow_definitions
-           (id, workflow_id, version, name, description, status, contract_version, definition, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+           (id, workflow_id, version, name, description, status, contract_version, definition, created_by, owner_principal)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
          RETURNING *`,
-        [id, workflowId, version, name, description, status, contractVersion, toJson(definition), createdBy],
+        [
+          id,
+          workflowId,
+          version,
+          name,
+          description,
+          status,
+          contractVersion,
+          toJson(definition),
+          createdBy,
+          ownerPrincipal,
+        ],
       );
 
       return rows[0];
@@ -78,13 +90,24 @@ export function createWorkflowRepository(db) {
       return rows[0]?.next || 1;
     },
 
-    async list({ status, limit = 50, offset = 0 } = {}) {
+    async list({ status, ownerPrincipal, limit = 50, offset = 0 } = {}) {
       const params = [];
-      let sql = 'SELECT * FROM workflow_definitions';
+      const clauses = [];
 
       if (status) {
         params.push(status);
-        sql += ` WHERE status = $${params.length}`;
+        clauses.push(`status = $${params.length}`);
+      }
+
+      if (ownerPrincipal) {
+        params.push(ownerPrincipal);
+        clauses.push(`(owner_principal = $${params.length} OR owner_principal IS NULL)`);
+      }
+
+      let sql = 'SELECT * FROM workflow_definitions';
+
+      if (clauses.length > 0) {
+        sql += ` WHERE ${clauses.join(' AND ')}`;
       }
 
       params.push(limit, offset);
@@ -177,6 +200,14 @@ export function createWorkflowRepository(db) {
     async findByJob(jobId) {
       const { rows } = await db.query('SELECT * FROM workflow_runs WHERE job_id = $1', [jobId]);
       return rows[0] || null;
+    },
+
+    async listByWorkflow(workflowId) {
+      const { rows } = await db.query(
+        'SELECT * FROM workflow_runs WHERE workflow_id = $1 ORDER BY created_at DESC',
+        [workflowId],
+      );
+      return rows;
     },
 
     async updateStatus(id, status) {

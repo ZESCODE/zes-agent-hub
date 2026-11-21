@@ -7,6 +7,7 @@
 import { z } from 'zod';
 
 export const NODE_TYPES = [
+  'start',
   'castor',
   'john',
   'siti',
@@ -20,6 +21,7 @@ export const NODE_TYPES = [
   'builder_tool',
   'deployment_tool',
   'output',
+  'report',
 ];
 
 const routingPolicySchema = z.object({
@@ -73,7 +75,15 @@ const outputConfigSchema = z
   })
   .strict();
 
+const startConfigSchema = z
+  .object({
+    trigger: z.enum(['manual', 'api']).default('manual'),
+    objective: z.string().max(2000).optional(),
+  })
+  .strict();
+
 const NODE_CONFIG_SCHEMAS = {
+  start: startConfigSchema,
   castor: agentConfigSchema,
   john: agentConfigSchema,
   siti: agentConfigSchema,
@@ -87,6 +97,7 @@ const NODE_CONFIG_SCHEMAS = {
   builder_tool: toolConfigSchema,
   deployment_tool: toolConfigSchema,
   output: outputConfigSchema,
+  report: outputConfigSchema,
 };
 
 const AGENT_NODE_TYPES = ['castor', 'john', 'siti', 'laurent', 'labu', 'verifier'];
@@ -94,6 +105,12 @@ const AGENT_NODE_TYPES = ['castor', 'john', 'siti', 'laurent', 'labu', 'verifier
 const TOOL_NODE_TYPES = ['github_tool', 'research_tool', 'builder_tool', 'deployment_tool'];
 
 const NODE_DEFINITIONS = {
+  start: {
+    label: 'Start',
+    category: 'control',
+    requiredPermissions: [],
+    description: 'Entry point of the workflow. The hub starts the run when a job is created.',
+  },
   castor: {
     label: 'Castor Orchestrator',
     category: 'agent',
@@ -189,6 +206,12 @@ const NODE_DEFINITIONS = {
     category: 'sink',
     requiredPermissions: [],
     description: 'Collects the artifacts that make up the final report.',
+  },
+  report: {
+    label: 'Report',
+    category: 'sink',
+    requiredPermissions: [],
+    description: 'Produces the final report from the artifacts of the run.',
   },
 };
 

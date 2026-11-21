@@ -32,6 +32,7 @@ const JOB_PHASE_BY_NODE_TYPE = {
   labu: 'deploying',
   verifier: 'verified',
   output: 'completed',
+  report: 'completed',
 };
 
 const SETTLED_STATUSES = ['completed', 'cancelled', 'skipped'];

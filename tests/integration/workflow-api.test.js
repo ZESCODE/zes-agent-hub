@@ -151,6 +151,135 @@ describe('workflow API', () => {
     expect(response.status).toBe(400);
   });
 
+  it('keeps a workflow private to the principal that created it', async () => {
+    const workflowId = `api-private-${Date.now()}`;
+
+    const created = await fetch(`${baseUrl}/api/v1/workflows`, {
+      method: 'POST',
+      headers: authHeaders({ 'X-ZES-User': 'alice@zes.codes' }),
+      body: JSON.stringify(definition(workflowId)),
+    });
+
+    expect(created.status).toBe(201);
+
+    const ownRead = await fetch(`${baseUrl}/api/v1/workflows/${workflowId}`, {
+      headers: authHeaders({ 'X-ZES-User': 'alice@zes.codes' }),
+    });
+    const otherRead = await fetch(`${baseUrl}/api/v1/workflows/${workflowId}`, {
+      headers: authHeaders({ 'X-ZES-User': 'bob@zes.codes' }),
+    });
+    const otherVersions = await fetch(`${baseUrl}/api/v1/workflows/${workflowId}/versions`, {
+      headers: authHeaders({ 'X-ZES-User': 'bob@zes.codes' }),
+    });
+    const otherUpdate = await fetch(`${baseUrl}/api/v1/workflows/${workflowId}`, {
+      method: 'PUT',
+      headers: authHeaders({ 'X-ZES-User': 'bob@zes.codes' }),
+      body: JSON.stringify(definition(workflowId)),
+    });
+
+    expect(ownRead.status).toBe(200);
+    expect(otherRead.status).toBe(404);
+    expect(otherVersions.status).toBe(404);
+    expect(otherUpdate.status).toBe(403);
+  });
+
+  it('does not list the workflow of another principal', async () => {
+    const workflowId = `api-hidden-${Date.now()}`;
+
+    await fetch(`${baseUrl}/api/v1/workflows`, {
+      method: 'POST',
+      headers: authHeaders({ 'X-ZES-User': 'alice@zes.codes' }),
+      body: JSON.stringify(definition(workflowId)),
+    });
+
+    const list = await fetch(`${baseUrl}/api/v1/workflows?limit=200`, {
+      headers: authHeaders({ 'X-ZES-User': 'bob@zes.codes' }),
+    });
+    const body = await list.json();
+
+    expect(list.status).toBe(200);
+    expect(body.workflows.some((entry) => entry.workflowId === workflowId)).toBe(false);
+  });
+
+  it('refuses to start a job with a workflow of another principal', async () => {
+    const workflowId = `api-unauthorized-${Date.now()}`;
+
+    const created = await fetch(`${baseUrl}/api/v1/workflows`, {
+      method: 'POST',
+      headers: authHeaders({ 'X-ZES-User': 'alice@zes.codes' }),
+      body: JSON.stringify(definition(workflowId)),
+    });
+    const createdBody = await created.json();
+
+    await fetch(`${baseUrl}/api/v1/workflows/${workflowId}/publish`, {
+      method: 'POST',
+      headers: authHeaders({ 'X-ZES-User': 'alice@zes.codes' }),
+      body: JSON.stringify({ version: createdBody.workflow.version }),
+    });
+
+    const job = await fetch(`${baseUrl}/api/v1/jobs`, {
+      method: 'POST',
+      headers: authHeaders({ 'X-ZES-User': 'bob@zes.codes' }),
+      body: JSON.stringify({
+        title: 'Unauthorized scout',
+        objective: 'Evaluate a repository',
+        workflowId,
+        workflowVersion: createdBody.workflow.version,
+      }),
+    });
+    const jobBody = await job.json();
+
+    expect(job.status).toBe(403);
+    expect(jobBody.error).toMatch(/not allowed to run/);
+  });
+
+  it('starts a job with the exact published version of the workflow', async () => {
+    const workflowId = `api-pinned-${Date.now()}`;
+
+    const created = await fetch(`${baseUrl}/api/v1/workflows`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(definition(workflowId)),
+    });
+    const createdBody = await created.json();
+
+    await fetch(`${baseUrl}/api/v1/workflows/${workflowId}/publish`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ version: createdBody.workflow.version }),
+    });
+
+    const updated = definition(workflowId);
+    updated.name = 'Pinned Scout v2';
+
+    await fetch(`${baseUrl}/api/v1/workflows/${workflowId}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(updated),
+    });
+
+    const job = await fetch(`${baseUrl}/api/v1/jobs`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        title: 'Pinned scout',
+        objective: 'Evaluate a repository',
+        workflowId,
+        workflowVersion: createdBody.workflow.version,
+      }),
+    });
+    const jobBody = await job.json();
+
+    expect(job.status).toBe(201);
+    expect(jobBody.workflow.version).toBe(createdBody.workflow.version);
+
+    const graph = await fetch(`${baseUrl}/api/v1/jobs/${jobBody.jobId}/graph`, { headers: authHeaders() });
+    const graphBody = await graph.json();
+
+    expect(graphBody.workflow.version).toBe(createdBody.workflow.version);
+    expect(graphBody.workflow.definition.name).toBe('ZAP Scout');
+  });
+
   it('creates a job from a published definition and exposes its graph', async () => {
     const workflowId = `api-job-${Date.now()}`;
 

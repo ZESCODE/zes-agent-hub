@@ -154,8 +154,14 @@ export function validateWorkflowDefinition(input, context = {}) {
     issues.push(issue('nodes', 'A workflow needs a castor entry node'));
   }
 
-  if (!definition.nodes.some((node) => node.type === 'output')) {
-    issues.push(issue('nodes', 'A workflow needs an output node'));
+  if (!definition.nodes.some((node) => node.type === 'output' || node.type === 'report')) {
+    issues.push(issue('nodes', 'A workflow needs an output or report node'));
+  }
+
+  const startNodes = definition.nodes.filter((node) => node.type === 'start');
+
+  if (startNodes.length > 1) {
+    issues.push(issue('nodes', 'A workflow can have only one start node'));
   }
 
   for (const node of definition.nodes) {
@@ -253,6 +259,11 @@ export function validateWorkflowDefinition(input, context = {}) {
     }
 
     const source = nodesById.get(edge.source);
+    const target = nodesById.get(edge.target);
+
+    if (target?.type === 'start') {
+      issues.push(issue(`edges.${edge.id}.target`, 'The start node cannot have incoming edges'));
+    }
 
     if (source?.type === 'condition' && edge.sourceHandle !== undefined) {
       const config = source.config || {};

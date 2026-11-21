@@ -207,7 +207,21 @@ Apache 2.0 permits the port. The obligations are:
 The port is a derivation of interface and code, so the notice is required. The plan adds
 `NOTICE` to the builder and a `docs/directive/attribution.md` in the hub.
 
-## 8. Phase 1 conclusion and request
+## 8. Phase 2 documents
+
+The Phase 2 design work is recorded next to this assessment:
+
+| Document | Covers |
+| --- | --- |
+| `local-repo-assessment.md` | Task A, the state of both authoritative working trees |
+| `component-reuse-matrix.md` | Task B, what to adopt, adapt, defer or reject from the template |
+| `phase2-file-plan.md` | Task C, the exact file set for Phase 2 in both repositories |
+| `workflow-contract-spec.md` | Task C, the versioned definition format in JSON and TypeScript |
+| `api-integration-design.md` | Task D, the builder to hub write path and the event stream |
+| `security-review.md` | Task F, findings and mitigations for the proposed integration |
+| `test-plan.md` | Task G, the test cases and the release gates |
+
+## 9. Phase 1 conclusion and request
 
 Assessment complete. The recommendation is **option A**: port the editor, the config
 system, the plugin contract, the execution panel and the code generator from the

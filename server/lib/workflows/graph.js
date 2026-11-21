@@ -105,6 +105,10 @@ export function materializeTasks(definition, { objective, userObjective } = {}) 
       maxAttempts: node.retry?.maxAttempts || definition.execution.defaultMaxAttempts,
     };
 
+    if (node.type === 'start') {
+      return;
+    }
+
     if (isAgentNodeType(node.type)) {
       tasks.push({
         ...base,
@@ -150,7 +154,7 @@ export function materializeTasks(definition, { objective, userObjective } = {}) 
       return;
     }
 
-    if (node.type === 'output') {
+    if (node.type === 'output' || node.type === 'report') {
       tasks.push({
         ...base,
         kind: 'output',

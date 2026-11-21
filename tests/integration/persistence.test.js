@@ -54,6 +54,34 @@ describe('persistent foundation', () => {
     expect(audit.some((entry) => entry.action === 'job.created')).toBe(true);
   });
 
+  it('associates every event with the job that produced it', async () => {
+    const first = await newJob({ title: 'First job' });
+    const second = await newJob({ title: 'Second job' });
+
+    await engine.recordArtifact(first.id, {
+      artifactType: 'report',
+      name: 'first.md',
+      storageUri: 'file:///tmp/first.md',
+      contentType: 'text/markdown',
+    });
+
+    await engine.recordArtifact(second.id, {
+      artifactType: 'report',
+      name: 'second.md',
+      storageUri: 'file:///tmp/second.md',
+      contentType: 'text/markdown',
+    });
+
+    const firstEvents = await repos.events.listByJob(first.id);
+    const secondEvents = await repos.events.listByJob(second.id);
+
+    expect(firstEvents.length).toBeGreaterThan(0);
+    expect(secondEvents.length).toBeGreaterThan(0);
+    expect(firstEvents.every((event) => event.job_id === first.id)).toBe(true);
+    expect(secondEvents.every((event) => event.job_id === second.id)).toBe(true);
+    expect(firstEvents.some((event) => secondEvents.some((other) => other.id === event.id))).toBe(false);
+  });
+
   it('creates tasks with acceptance criteria', async () => {
     const job = await newJob();
     const task = await engine.createTask(job.id, {

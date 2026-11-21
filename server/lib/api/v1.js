@@ -43,6 +43,22 @@ export function createApiRouter({
     });
   };
 
+  /**
+   * The principal of the caller, relayed by the builder from the Whop session.
+   * A request without the header is an internal call and is not scoped.
+   */
+  function callerPrincipal(req) {
+    const header = req.get('x-zes-user');
+
+    if (!header) {
+      return null;
+    }
+
+    const value = String(header).trim().toLowerCase();
+
+    return value || null;
+  }
+
   const createJobSchema = z.object({
     title: z.string().min(1).max(200),
     objective: z.string().min(1).max(8000),
@@ -70,6 +86,23 @@ export function createApiRouter({
       }
 
       const input = parsed.data;
+      const ownerPrincipal = callerPrincipal(req);
+
+      if (input.workflowId && definitions) {
+        try {
+          await definitions.resolveDefinition(input.workflowId, input.workflowVersion, {
+            ownerPrincipal,
+            action: 'run',
+          });
+        } catch (error) {
+          if (error.name === 'WorkflowAccessError') {
+            return res.status(403).json({ error: error.message });
+          }
+
+          return res.status(400).json({ error: error.message });
+        }
+      }
+
       const job = await engine.createJob({
         title: input.title,
         objective: input.objective,
@@ -84,10 +117,14 @@ export function createApiRouter({
 
       if (input.workflowId && definitions) {
         try {
-          const attached = await definitions.attachToJob(job.id, {
-            workflowId: input.workflowId,
-            version: input.workflowVersion,
-          });
+          const attached = await definitions.attachToJob(
+            job.id,
+            {
+              workflowId: input.workflowId,
+              version: input.workflowVersion,
+            },
+            { ownerPrincipal },
+          );
 
           workflow = {
             workflowId: attached.definition.workflowId,
@@ -95,7 +132,12 @@ export function createApiRouter({
             contractVersion: WORKFLOW_CONTRACT_VERSION,
           };
         } catch (error) {
-          await repos.jobs.remove(job.id);
+          await engine.transitionJob(job.id, 'failed', { reason: error.message });
+
+          if (error.name === 'WorkflowAccessError') {
+            return res.status(403).json({ error: error.message });
+          }
+
           return res.status(400).json({ error: error.message });
         }
       }
@@ -477,7 +519,12 @@ export function createApiRouter({
 
       const limit = Math.min(Number(req.query.limit) || 50, 200);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
-      const definitions = await workflowRepos.definitions.list({ status: req.query.status, limit, offset });
+      const definitions = await workflowRepos.definitions.list({
+        status: req.query.status,
+        ownerPrincipal: callerPrincipal(req),
+        limit,
+        offset,
+      });
 
       return res.json({
         workflows: definitions.map((definition) => ({
@@ -505,7 +552,9 @@ export function createApiRouter({
       }
 
       try {
-        const stored = await definitions.createDefinition(req.body ?? {});
+        const stored = await definitions.createDefinition(req.body ?? {}, {
+          ownerPrincipal: callerPrincipal(req),
+        });
         return res.status(201).json({ workflow: stored });
       } catch (error) {
         if (error.name === 'WorkflowValidationError') {
@@ -534,6 +583,12 @@ export function createApiRouter({
         return res.status(404).json({ error: 'Workflow not found' });
       }
 
+      const ownerPrincipal = callerPrincipal(req);
+
+      if (ownerPrincipal && stored.owner_principal && stored.owner_principal !== ownerPrincipal) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+
       return res.json({ workflow: stored });
     }),
   );
@@ -546,11 +601,17 @@ export function createApiRouter({
       }
 
       try {
-        const stored = await definitions.updateDefinition(req.params.workflowId, req.body ?? {});
+        const stored = await definitions.updateDefinition(req.params.workflowId, req.body ?? {}, {
+          ownerPrincipal: callerPrincipal(req),
+        });
         return res.status(201).json({ workflow: stored });
       } catch (error) {
         if (error.name === 'WorkflowValidationError') {
           return res.status(400).json({ error: error.message, issues: error.issues });
+        }
+
+        if (error.name === 'WorkflowAccessError') {
+          return res.status(error.status).json({ error: error.message });
         }
 
         if (error.message.startsWith('Workflow not found')) {
@@ -570,7 +631,9 @@ export function createApiRouter({
       }
 
       try {
-        const result = await definitions.deleteDefinition(req.params.workflowId);
+        const result = await definitions.deleteDefinition(req.params.workflowId, {
+          ownerPrincipal: callerPrincipal(req),
+        });
         return res.json({
           workflowId: req.params.workflowId,
           deletedVersions: result.versions.map((version) => version.version),
@@ -580,6 +643,10 @@ export function createApiRouter({
       } catch (error) {
         if (error.name === 'WorkflowInUseError') {
           return res.status(409).json({ error: error.message });
+        }
+
+        if (error.name === 'WorkflowAccessError') {
+          return res.status(error.status).json({ error: error.message });
         }
 
         if (error.message.startsWith('Workflow not found')) {
@@ -599,6 +666,17 @@ export function createApiRouter({
       }
 
       const versions = await workflowRepos.definitions.listVersions(req.params.workflowId);
+
+      if (versions.length === 0) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+
+      const ownerPrincipal = callerPrincipal(req);
+
+      if (ownerPrincipal && versions[0].owner_principal && versions[0].owner_principal !== ownerPrincipal) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+
       return res.json({ versions });
     }),
   );
@@ -618,11 +696,17 @@ export function createApiRouter({
       }
 
       try {
-        const published = await definitions.publishDefinition(req.params.workflowId, parsed.data.version);
+        const published = await definitions.publishDefinition(req.params.workflowId, parsed.data.version, {
+          ownerPrincipal: callerPrincipal(req),
+        });
         return res.json({ workflow: published });
       } catch (error) {
         if (error.name === 'WorkflowValidationError') {
           return res.status(400).json({ error: error.message, issues: error.issues });
+        }
+
+        if (error.name === 'WorkflowAccessError') {
+          return res.status(error.status).json({ error: error.message });
         }
 
         if (error.message.startsWith('Workflow not found')) {

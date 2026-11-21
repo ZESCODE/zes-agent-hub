@@ -122,7 +122,20 @@ permission gate checks the agent that executes the call.
 | A task fails and the retry is refused | The scheduler moves a failed task back to `pending` before the next attempt |
 | A model call hangs | Every provider request carries a deadline; the worker is released |
 
-## 6. Verification
+## 6. Vercel Workflow Builder Template compatibility
+
+| Area | Template | ZESCODE | Verdict |
+| --- | --- | --- | --- |
+| Editor library | `@xyflow/react` 12.9.2 | `@xyflow/react` 12.9.2 | Identical, components port without a dependency change |
+| Application framework | Next.js 16 App Router | React Router 8 + Vite 8 | The template application is not adopted; its components are ported |
+| Durable execution | `workflow` SDK 4.0.1-beta.17 (Apache-2.0), needs the framework plugin | Hub scheduler with jobs, tasks, leases, backoff, approvals, verification | The SDK would own run state; the hub keeps that ownership, so the SDK is deferred to a separately approved decision |
+| Framework support of the SDK | Next.js, Vite, React Router, Astro, Express, Fastify, Hono, Nitro, Nuxt, SvelteKit, TanStack Start | React Router and Express are both supported, but the integrations need Nitro v3 | Adopting the SDK would change the build of both applications |
+| Authentication | better-auth | Whop gate | The Whop gate is kept, as the directive requires |
+| Database | Drizzle + Postgres tables for workflows, executions and logs | The hub owns `workflow_definitions`, `workflow_runs`, `jobs`, `tasks` | No second workflow store in the builder |
+| Credentials | Per user integration credentials fetched by reference in the step | The hub tool gateway with an agent permission check and operator grants | Template steps would bypass permission enforcement, so they are not adopted |
+| Deployment | Vercel + Neon, Next.js build, migrations in the build | Builder on Vercel, hub on Render | The current architecture is kept |
+
+## 7. Verification
 
 - Hub suite: **108 tests** (`node node_modules/vitest/vitest.mjs run`), 13 files, all green.
 - Builder suite: **97 tests** (`npx --no-install vitest --run tests/unit`), 8 files, all green.

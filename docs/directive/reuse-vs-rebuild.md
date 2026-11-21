@@ -52,7 +52,24 @@ the workflow layer was added only where v1 had no equivalent.
 | Client-side execution of a workflow | The builder never runs a task; it starts a job and reads the hub |
 | Pollinations quest scraping for credits | The client now detects the credit message and falls back to the free model |
 
-## 4. Net effect
+## 4. Vercel Workflow Builder Template
+
+The template was assessed in Phase 1; the detail is in `vercel-template-assessment.md`.
+The short form:
+
+| Template part | Decision |
+| --- | --- |
+| React Flow canvas, node visuals, minimap, connection validation | Port into the builder (Phase 2) |
+| Declarative config fields and the action grid | Port into the builder, they replace the hand written config panel |
+| The plugin registry contract and the discovery mechanism | Port as the ZESCODE node catalogue |
+| The execution history panel | Port into the builder as the run timeline |
+| The condition evaluator and validator | Port the validator; the hub keeps its own evaluator as the authority |
+| The code generator and the AI operation stream | Port as the workflow generation interface |
+| The Next.js application, the routes, the drizzle schema, better-auth | Not adopted: they would replace the builder, the Whop gate and the hub store |
+| The plugin steps that call third party APIs directly | Not adopted: they would bypass the hub tool gateway and its permission checks |
+| The `workflow` SDK as the execution engine | Deferred: it moves run ownership out of the hub and needs Nitro in the hub build |
+
+## 5. Net effect
 
 - **No v1 table was dropped or rewritten.** The workflow layer added two tables and four
   columns.

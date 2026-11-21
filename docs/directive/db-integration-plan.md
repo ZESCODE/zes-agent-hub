@@ -114,7 +114,26 @@ Migrations are applied by `server/lib/db/migrate.js` on start. Both use
 `CREATE TABLE IF NOT EXISTS` and `ADD COLUMN IF NOT EXISTS`, so applying them twice is
 safe.
 
-## 7. Growth and safety
+## 7. The Vercel Workflow Builder Template and the database
+
+The template stores its definitions, executions and logs in its own Drizzle tables
+(`workflows`, `workflow_executions`, `workflow_execution_logs`) in Postgres. Adopting
+those tables in the builder would create a second workflow store next to
+`workflow_definitions` and `workflow_runs`, which the directive forbids.
+
+The decision in Phase 1 is therefore:
+
+| Store | Owner | Content |
+| --- | --- | --- |
+| `workflow_definitions`, `workflow_runs`, `jobs`, `tasks`, `artifacts`, `agent_events`, `audit_logs`, `model_usage` | the hub | every definition, every run, every task, every event |
+| the template's `workflows` tables | not adopted | the builder edits the hub definitions through the existing proxies |
+| the Workflow SDK World tables | deferred | only if the SDK is later approved as the execution engine; the World would live in its own schema of the same database, and the hub would keep the authoritative job record |
+
+The template's database code is therefore not ported. Only its **patterns** are used: a
+declarative node catalogue in the builder, and a Postgres world if the SDK is approved
+later.
+
+## 8. Growth and safety
 
 - A task row is written once per node and updated through its state machine; the
   `locked_by` and `locked_until` columns are the lease that prevents two workers from

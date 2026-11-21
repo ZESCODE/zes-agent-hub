@@ -145,7 +145,73 @@ describe('workflow contract', () => {
     definition.nodes = definition.nodes.filter((node) => node.type !== 'output');
     definition.edges = definition.edges.filter((edge) => edge.target !== 'n_out');
 
-    expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(/output node/);
+    expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(
+      /output or report node/,
+    );
+  });
+
+  it('accepts a start node and a report node', () => {
+    const definition = baseDefinition();
+    definition.nodes = [
+      {
+        id: 'n_start',
+        type: 'start',
+        position: { x: 0, y: 0 },
+        config: { trigger: 'manual', objective: 'Scout the repository' },
+      },
+      ...definition.nodes,
+      {
+        id: 'n_report',
+        type: 'report',
+        position: { x: 600, y: 0 },
+        config: { artifactTypes: ['research_report'] },
+      },
+    ];
+    definition.edges = [
+      { id: 'e0', source: 'n_start', target: 'n_castor' },
+      ...definition.edges,
+      { id: 'e3', source: 'n_out', target: 'n_report' },
+    ];
+
+    const validated = validateWorkflowDefinition(definition, { registry, knownTaskTypes });
+
+    expect(validated.nodes).toHaveLength(5);
+    expect(validated.nodes[0].type).toBe('start');
+  });
+
+  it('rejects a second start node', () => {
+    const definition = baseDefinition();
+    definition.nodes.push({
+      id: 'n_start',
+      type: 'start',
+      position: { x: 0, y: 200 },
+      config: { trigger: 'manual' },
+    });
+    definition.nodes.push({
+      id: 'n_start_2',
+      type: 'start',
+      position: { x: 0, y: 400 },
+      config: { trigger: 'api' },
+    });
+
+    expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(
+      /only one start node/,
+    );
+  });
+
+  it('rejects an edge that points into the start node', () => {
+    const definition = baseDefinition();
+    definition.nodes.push({
+      id: 'n_start',
+      type: 'start',
+      position: { x: 0, y: 200 },
+      config: { trigger: 'manual' },
+    });
+    definition.edges.push({ id: 'e3', source: 'n_john', target: 'n_start' });
+
+    expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(
+      /start node cannot have incoming edges/,
+    );
   });
 
   it('requires an approval for a protected deployment action', () => {
@@ -241,6 +307,36 @@ describe('workflow graph', () => {
     expect(tasks.map((task) => task.nodeId)).toEqual(['n_castor', 'n_john', 'n_out']);
     expect(tasks[0].kind).toBe('agent');
     expect(tasks[2].kind).toBe('output');
+  });
+
+  it('materialises a start node as a marker and a report node as an output task', () => {
+    const definition = baseDefinition();
+    definition.nodes = [
+      {
+        id: 'n_start',
+        type: 'start',
+        position: { x: 0, y: 0 },
+        config: { trigger: 'manual', objective: 'Scout the repository' },
+      },
+      ...definition.nodes,
+      {
+        id: 'n_report',
+        type: 'report',
+        position: { x: 600, y: 0 },
+        config: { artifactTypes: ['research_report'] },
+      },
+    ];
+    definition.edges = [
+      { id: 'e0', source: 'n_start', target: 'n_castor' },
+      ...definition.edges,
+      { id: 'e3', source: 'n_out', target: 'n_report' },
+    ];
+
+    const validated = validateWorkflowDefinition(definition, { registry, knownTaskTypes });
+    const tasks = materializeTasks(validated, { objective: 'find a repo' });
+
+    expect(tasks.map((task) => task.nodeId)).toEqual(['n_castor', 'n_john', 'n_out', 'n_report']);
+    expect(tasks[3].kind).toBe('output');
   });
 });
 

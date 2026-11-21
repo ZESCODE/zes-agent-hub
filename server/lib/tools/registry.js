@@ -156,6 +156,9 @@ export function createToolRegistry({ logger = () => {}, agentPermissions = () =>
         description: repository.description,
         license: repository.license?.spdx_id || null,
         htmlUrl: repository.html_url,
+        language: repository.language || null,
+        topics: Array.isArray(repository.topics) ? repository.topics : [],
+        files: Array.isArray(repository.files) ? repository.files : [],
       };
     },
     'builder.project.read': async ({ parameters }) => {

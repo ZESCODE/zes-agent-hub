@@ -112,7 +112,25 @@ fixed, covered by a test and deployed.
 | An empty Pollinations balance was stored as a task result | The client detects the credit message, falls back to the free model and gives every request a deadline | hub #24 |
 | The database suites timed out when the files ran in parallel | The test timeout was raised in the Vitest configuration | hub #19 |
 
-## 7. Known limitations
+## 7. Phase 1 of the template directive
+
+The ZESCODE Integration Directive for the Vercel Workflow Builder Template was
+assessed in Phase 1 and stopped for review, as the directive asks.
+
+| Item | Result |
+| --- | --- |
+| Template inspected | `vercel-labs/workflow-builder-template`, Apache License 2.0 |
+| Template cloned for the assessment | `~/tmp/workflow-builder-template` (read only, outside both repositories) |
+| Reusable parts identified | React Flow canvas and node visuals, declarative config fields, the plugin registry contract, the execution panel, the condition validator, the code generator, the AI operation stream, the credential fetcher pattern |
+| Conflicts identified | Next.js against React Router, better-auth against the Whop gate, Drizzle tables against the hub store, the SDK World against hub owned jobs, plugin steps against the hub permission gateway, Nitro against the current builds |
+| Recommendation | Option A: port the editor, the config system, the plugin contract, the panel and the code generator; keep the hub, the authentication, the deployment and the database as they are |
+| Production systems touched | none |
+| Existing files overwritten | none, only the documents of this directive were extended |
+
+The detail is in `vercel-template-assessment.md`; the reuse decision is in
+`reuse-vs-rebuild.md`; the planned file list is in `file-by-file-plan.md`.
+
+## 8. Known limitations
 
 | Limitation | State |
 | --- | --- |

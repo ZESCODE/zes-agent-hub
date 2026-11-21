@@ -101,7 +101,57 @@ well as the pages.
 | `builder/tests/unit/workflow-contract.test.ts` | The client mirror and the payload mapping |
 | `builder/tests/unit/scout-template.test.ts` | The Scout template |
 
-## 5. Sequence that was followed
+## 5. Phase 2 plan: the Vercel Workflow Builder Template
+
+Planned, not implemented. The assessment is in `vercel-template-assessment.md`; the
+decision to proceed is part of the Phase 1 review.
+
+### 5.1 Builder — new files
+
+| File | Source in the template | Purpose |
+| --- | --- | --- |
+| `app/components/zap/nodes/AgentNode.tsx` | `components/workflow/nodes/action-node.tsx` | Agent node visual |
+| `app/components/zap/nodes/ToolNode.tsx` | same | Tool node visual with the permission badge |
+| `app/components/zap/nodes/AddNode.tsx` | `components/workflow/nodes/add-node.tsx` | The add node that opens the catalogue |
+| `app/components/zap/config/ConfigFields.tsx` | `components/workflow/config/action-config-renderer.tsx` | Declarative config field renderer |
+| `app/components/zap/config/FieldTypes.tsx` | `components/workflow/config/action-config.tsx` | The field components |
+| `app/components/zap/config/ActionGrid.tsx` | `components/workflow/config/action-grid.tsx` | Searchable node catalogue |
+| `app/components/zap/config/NodeCatalogue.ts` | `plugins/registry.ts`, `plugins/_template` | The declarative node catalogue |
+| `app/components/zap/RunTimeline.tsx` | `components/workflow/workflow-runs.tsx` | Execution history panel |
+| `app/lib/workflows/codegen.ts` | `lib/workflow-codegen.ts` | Graph to TypeScript generation |
+| `app/lib/workflows/generate-operations.ts` | `app/api/ai/generate/route.ts` | The streaming graph operation format |
+| `app/lib/workflows/condition-validator.ts` | `lib/condition-validator.ts` | Client side condition validation |
+| `NOTICE` | Apache 2.0 obligation | Attribution of the derived files |
+
+### 5.2 Builder — files to modify
+
+| File | Change |
+| --- | --- |
+| `app/components/zap/canvas/WorkflowCanvas.tsx` | New node components, handle validation from the template |
+| `app/components/zap/canvas/NodePalette.tsx` | The declarative catalogue replaces the hard coded list |
+| `app/components/zap/canvas/ConfigPanel.tsx` | The declarative fields replace the hand written inputs |
+| `app/components/zap/canvas/store.ts` | Autosave debounce and the operation buffer |
+| `app/components/zap/canvas/WorkflowNodeView.tsx` | Reduced to the fallback node |
+| `app/routes/zap.canvas.tsx` | The timeline panel next to the canvas |
+| `app/routes/zap.tsx` | The generation interface entry point |
+| `package.json` | The dependencies the ported panels need |
+
+### 5.3 Hub — files to modify
+
+| File | Change |
+| --- | --- |
+| `server/lib/workflows/node-types.js` | The `model_router` node type and the config field descriptors |
+| `server/lib/workflows/contract.js` | Validation of the new node type |
+| `server/lib/api/v1.js` | The descriptors in the shape the catalogue uses |
+
+### 5.4 Files that stay untouched
+
+`app/lib/whop.server.ts` and every `requireAccess` call; `app/lib/hub.server.ts` and the
+server only proxy pattern; the permission logic in `server/lib/tools/registry.js`; the
+scheduler in `server/lib/orchestrator/scheduler.js`; `migrations/*`; the deployment
+configuration of both repositories.
+
+## 6. Sequence that was followed
 
 1. Contract and node types in the hub, then the client mirror in the builder.
 2. Storage and the definition service, then the API.

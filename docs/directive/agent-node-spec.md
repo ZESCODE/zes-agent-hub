@@ -110,7 +110,49 @@ retries silently. Publishing stays denied until an operator grants it explicitly
 5. A workflow with acceptance criteria must contain a `verifier` node.
 6. A published version cannot be edited; a new version is created instead.
 
-## 7. Writing a new agent node type
+## 7. The Phase 3 node list
+
+The directive names eleven ZESCODE nodes. The mapping to the node types the hub already
+knows, and to the node kinds of the Vercel template, is direct.
+
+| Directive node | Hub node type | Agent | Task type | Template kind |
+| --- | --- | --- | --- | --- |
+| Castor Orchestrator | `castor` | castor | `plan` | action |
+| John Research | `john` | john | `scout`, `research` | action |
+| Siti Product and UX | `siti` | siti | `design` | action |
+| Laurent Engineering | `laurent` | laurent | `build` | action |
+| Labu Infrastructure | `labu` | labu | `deploy`, `infrastructure` | action |
+| Verifier Independent QA | `verifier` | verifier | `verify` | action |
+| Model Router | `model_router` (new control node) | — | — | condition, extended |
+| Approval Gate | `approval_gate` | — | — | action with a gate step |
+| GitHub Tool | `github_tool` | john | `read` | action |
+| Deployment Tool | `deployment_tool` | labu | `preview`, `publish` | action |
+| Artifact Output | `output` | castor | `output` | action |
+
+### 7.1 The model router node
+
+The model router is a **control node**. It carries a routing policy, not a model:
+
+```jsonc
+{
+  "id": "route_build",
+  "type": "model_router",
+  "position": { "x": 520, "y": 0 },
+  "config": {
+    "routingPolicy": { "taskType": "build", "complexity": "high" },
+    "branches": [
+      { "when": "job.input.complexity == 'high'", "target": "laurent_build" },
+      { "when": "true", "target": "siti_design" }
+    ]
+  }
+}
+```
+
+The hub resolves the task type to a model through the router table
+(`server/lib/providers/router.js`). The node chooses the branch; the model is always a
+hub decision. A model id in a definition stays invalid.
+
+## 8. Writing a new agent node type
 
 1. Add the type to `server/lib/workflows/node-types.js` with its agent, its required
    permissions and the tools it accepts.

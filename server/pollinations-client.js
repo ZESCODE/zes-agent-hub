@@ -58,20 +58,24 @@ export async function pollinationsGenText(model, prompt, options = {}) {
  * @returns {Promise<{content: string, model: string, tokens: number}>}
  */
 export async function pollinationsGenChat(model, messages, options = {}) {
-  const response = await fetch(`${POLLINATIONS_GATEWAY_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${POLLINATIONS_API_KEY}`,
+  const response = await fetchWithTimeout(
+    `${POLLINATIONS_GATEWAY_URL}/chat/completions`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${POLLINATIONS_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options.temperature ?? 0.2,
+        max_tokens: options.maxTokens || 1024,
+        stream: false,
+      }),
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: options.temperature ?? 0.2,
-      max_tokens: options.maxTokens || 1024,
-      stream: false,
-    }),
-  });
+    options.timeoutMs || 120_000,
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -79,11 +83,97 @@ export async function pollinationsGenChat(model, messages, options = {}) {
   }
 
   const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+
+  if (isCreditError(content)) {
+    const fallback = await classicFallback(messages, options);
+
+    if (fallback) {
+      return fallback;
+    }
+
+    const error = new Error('Pollinations credits exhausted');
+    error.code = 'model_credits_exhausted';
+    throw error;
+  }
+
   return {
-    content: data.choices?.[0]?.message?.content || '',
+    content,
     model: data.model || model,
     tokens: data.usage?.total_tokens || 0,
   };
+}
+
+/**
+ * Every request carries a deadline so a slow provider cannot hold a worker.
+ */
+async function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  timer.unref?.();
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Pollinations answers a request without credits with a normal completion
+ * that carries a top up message instead of an error status.
+ */
+function isCreditError(content) {
+  return /doesn['’]?t have enough credits|not enough credits|complete a quest/i.test(String(content || ''));
+}
+
+/**
+ * The classic API keeps one free model available, so a run does not stop when
+ * the account balance is empty.
+ */
+async function classicFallback(messages, options = {}) {
+  const classicUrl = process.env.POLLINATIONS_CLASSIC_URL || 'https://text.pollinations.ai/openai';
+
+  try {
+    const response = await fetchWithTimeout(
+      classicUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(POLLINATIONS_API_KEY ? { Authorization: `Bearer ${POLLINATIONS_API_KEY}` } : {}),
+        },
+        body: JSON.stringify({
+          model: process.env.POLLINATIONS_FALLBACK_MODEL || 'openai-fast',
+          messages,
+          temperature: options.temperature ?? 0.2,
+          max_tokens: options.maxTokens || 1024,
+          stream: false,
+        }),
+      },
+      options.timeoutMs || 60_000,
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    if (!content || isCreditError(content)) {
+      return null;
+    }
+
+    return {
+      content,
+      model: data.model || process.env.POLLINATIONS_FALLBACK_MODEL || 'openai-fast',
+      tokens: data.usage?.total_tokens || 0,
+      fallback: true,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function pollinationsListModels() {

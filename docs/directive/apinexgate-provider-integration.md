@@ -2,7 +2,8 @@
 
 Date: 2026-11-22
 Repository: `ZESCODE/zes-agent-hub` (working tree `~/tmp/zes-agent-hub`, base commit `320d05b`)
-Status: **implemented and verified locally — not deployed** (no deployment approval was given; the directive forbids deploying without it).
+Status: **merged and deployed** — PR #29, squash commit `43b6abc`, Render deploy `dep-dc1h6jh42hec73abmpc0`.
+The gateway itself is published at `https://gate.zes.codes` through a free Cloudflare Tunnel (approved by the user on 2026-11-22).
 
 ---
 
@@ -140,8 +141,8 @@ The gateway from Phase 1 runs on `http://127.0.0.1:8787` with a dedicated custom
 | Item | Detail |
 |---|---|
 | No successful completion through the gateway yet | The gateway has no upstream APInex key, so every inference ends in `503`. The adapter, the error mapping, the fallback and the accounting are verified; a real completion through the gateway is not. Closing this needs the `sk-apx-…` key from Phase 1. |
-| The deployed hub cannot reach the gateway | The gateway is local-only (Phase 1 decision), so `APINEXGATE_BASE_URL=http://127.0.0.1:8787/v1` is unreachable from Render. Production use needs the gateway hosted somewhere reachable — which needs the hosting approval that is still excluded — or a private tunnel. |
-| Nothing deployed | No commit, no branch push, no Render deploy, no environment variables changed on Render. The directive forbids deploying without approval. |
+| The gateway is phone-hosted | The tunnel publishes the gateway from an Android device, so its uptime follows that device. The admin console is deliberately loopback-only (`ADMIN_ALLOWED_HOSTS` unset). |
+| No upstream key | The gateway needs a real `sk-apx-…` key before any model answers. |
 | Cost estimate is a flat rate | The gateway does not report a cost in the OpenAI response, so `model_usage.estimated_cost` uses `APINEXGATE_COST_PER_MILLION_TOKENS` (default 0.5, same flat rate Pollinations uses). The gateway's own ledger remains the billing source of truth. |
 | Provider catalogue is read-only | `GET /api/providers` reports configuration state; it does not call the gateway. A live catalogue check needs the gateway env vars and is covered by the integration test instead. |
 | Token split for providers without usage data | Providers that report only `total_tokens` keep the previous 70/30 split. The gateway reports prompt and completion tokens, which are now used as-is. |
@@ -149,6 +150,5 @@ The gateway from Phase 1 runs on `http://127.0.0.1:8787` with a dedicated custom
 ## 7. Remaining work
 
 1. **Obtain an APInex key** so the gateway can serve real completions; re-run the live integration test to see a successful completion and a populated `usage_events` chain.
-2. **Decide hosting** for the gateway (still excluded by `08-apinexgate-exclusion.md`) so the hub can reach it, or approve a private tunnel.
-3. **Deployment** of this hub change — needs explicit approval; nothing has been deployed.
-4. Optional: expose the gateway catalogue in the hub UI, and a per-provider dashboard of the `model_usage` rows.
+2. **Move the gateway off the phone** when a durable host is wanted — Oracle Cloud Always Free or a GCP e2-micro (both free with a persistent disk); the tunnel then points at that host instead.
+3. Optional: expose the gateway catalogue in the hub UI, and a per-provider dashboard of the `model_usage` rows.

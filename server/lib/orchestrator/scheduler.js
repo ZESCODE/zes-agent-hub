@@ -573,8 +573,8 @@ export function createScheduler({
       jobId,
       taskId: task.id,
       agentId: agent.id,
-      provider: route.provider,
-      model: route.model,
+      provider: result.provider ?? route.provider,
+      model: result.model ?? route.model,
       inputTokens: result.inputTokens ?? null,
       outputTokens: result.outputTokens ?? null,
       estimatedCost: result.estimatedCost ?? null,
@@ -660,7 +660,13 @@ export function createScheduler({
 
     await engine.transitionTask(task.id, 'running', { reason: `claimed by ${workerId}` });
 
-    const route = routeFor({ taskType: task.task_type });
+    const route = routeFor({
+      taskType: task.task_type,
+      provider: agent.provider,
+      model: routeModelFor(agent),
+      fallbackProvider: agent.fallbackProvider,
+      fallbackModel: agent.fallbackModel,
+    });
     const startedAt = Date.now();
 
     try {
@@ -723,6 +729,18 @@ export function createScheduler({
     }
 
     return expired;
+  }
+
+  /**
+   * A seat that names a provider owns its model list, so its own model id is
+   * used. The default provider keeps the task-type model from the route table.
+   */
+  function routeModelFor(agent) {
+    if (!agent?.provider || agent.provider === 'pollinations') {
+      return undefined;
+    }
+
+    return agent.model || undefined;
   }
 
   return { runNextTask, reapExpiredLeases };

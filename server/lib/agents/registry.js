@@ -66,6 +66,8 @@ export function buildAgentRegistry(config) {
       enabled: true,
       provider: seat.provider || 'pollinations',
       model: seat.model,
+      fallbackProvider: seat.fallbackProvider || undefined,
+      fallbackModel: seat.fallbackModel || undefined,
       tools: DEFAULT_TOOLS,
       permissions: permissionsForAgent(seat.id),
       maxConcurrentTasks: seat.id === 'castor' ? 1 : 3,

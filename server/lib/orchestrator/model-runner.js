@@ -1,7 +1,7 @@
 // zes-agent-hub — agent model runner
 // Executes one task with the routed model and returns a structured result.
 
-import { pollinationsGenChat } from '../../pollinations-client.js';
+import { costPerMillionTokens, getProvider } from '../providers/registry.js';
 
 const SYSTEM_PROMPTS = {
   castor: 'You are Castor, the orchestrator. Break objectives into concrete, verifiable steps.',
@@ -60,14 +60,16 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
     'Respond with JSON only: {"summary": "...", "outputs": ["..."], "issues": ["..."], "evidence": ["..."]}.',
   ].join('\n\n');
 
-  const response = await pollinationsGenChat(
-    route.model,
-    [
-      { role: 'system', content: SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}.` },
-      { role: 'user', content: instruction },
-    ],
-    { maxTokens: 2000, temperature: 0.3 },
-  );
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPTS[agent.id] || `You are ${agent.name}.` },
+    { role: 'user', content: instruction },
+  ];
+
+  const { response, provider: usedProvider, model: usedModel, fallbackReason } = await callWithFallback({
+    route,
+    messages,
+    timeoutMs,
+  });
 
   const parsed = extractJson(response.content);
 
@@ -80,22 +82,57 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
       issues: parsed?.issues || [],
       evidence: Array.isArray(parsed?.evidence) ? parsed.evidence : [],
       requiresApproval: false,
-      model: route.model,
+      model: usedModel,
+      provider: usedProvider,
       agentId: agent.id,
     },
-    inputTokens: response.tokens ? Math.round(response.tokens * 0.7) : null,
-    outputTokens: response.tokens ? Math.round(response.tokens * 0.3) : null,
-    estimatedCost: estimateCost(response.tokens),
+    inputTokens: response.inputTokens ?? (response.tokens ? Math.round(response.tokens * 0.7) : null),
+    outputTokens: response.outputTokens ?? (response.tokens ? Math.round(response.tokens * 0.3) : null),
+    estimatedCost: estimateCost(response.tokens, usedProvider),
     timeoutMs,
+    provider: usedProvider,
+    model: usedModel,
+    fallback: Boolean(fallbackReason),
+    fallbackReason: fallbackReason || null,
   };
 }
 
-const COST_PER_MILLION_TOKENS = 0.5;
+/**
+ * Call the routed provider. When that provider is not the default one and it
+ * fails, the run continues on the fallback provider instead of failing the task.
+ */
+async function callWithFallback({ route, messages, timeoutMs }) {
+  const providerId = route.provider || 'pollinations';
+  const provider = getProvider(providerId);
+  const options = { maxTokens: 2000, temperature: 0.3, timeoutMs };
 
-function estimateCost(tokens) {
+  try {
+    const response = await provider.genChat(route.model, messages, options);
+    return { response, provider: providerId, model: response.model || route.model, fallbackReason: null };
+  } catch (error) {
+    const fallbackProvider = route.fallbackProvider;
+
+    if (!fallbackProvider || fallbackProvider === providerId) {
+      throw error;
+    }
+
+    const fallback = getProvider(fallbackProvider);
+    const response = await fallback.genChat(route.fallbackModel, messages, options);
+
+    return {
+      response: { ...response, fallback: true },
+      provider: fallbackProvider,
+      model: response.model || route.fallbackModel,
+      fallbackReason: error.message,
+    };
+  }
+}
+
+function estimateCost(tokens, providerId) {
   if (!tokens) {
     return 0;
   }
 
-  return Number(((tokens / 1_000_000) * COST_PER_MILLION_TOKENS).toFixed(6));
+  const rate = costPerMillionTokens(providerId);
+  return Number(((tokens / 1_000_000) * rate).toFixed(6));
 }

@@ -18,6 +18,7 @@ import { createWorkflowRepository } from './lib/repositories/workflows.js';
 import { createEngine } from './lib/workflows/engine.js';
 import { createApiRouter } from './lib/api/v1.js';
 import { buildAgentRegistry, permissionsForAgent } from './lib/agents/registry.js';
+import { providerCatalog } from './lib/providers/registry.js';
 import { createPlanner } from './lib/orchestrator/planner.js';
 import { createScheduler } from './lib/orchestrator/scheduler.js';
 import { runTaskWithModel } from './lib/orchestrator/model-runner.js';
@@ -194,6 +195,11 @@ state.channels.set(seatsConfig.councilChannel || 'council-channel', {
 // Health
 app.get('/healthz', (req, res) => {
   res.json({ ok: true, service: 'zes-agent-hub', version: '0.1.0', protocol: 'agora/0.4' });
+});
+
+// Model providers the hub can call. Read-only, no credentials are returned.
+app.get('/api/providers', (req, res) => {
+  res.json({ providers: providerCatalog(), defaultProvider: 'pollinations' });
 });
 
 /*

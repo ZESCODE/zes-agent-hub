@@ -67,10 +67,10 @@ afterAll(async () => {
 });
 
 describe('seat level provider routing', () => {
-  it('keeps a seat that did not opt in on pollinations', async () => {
+  it('keeps a seat that did not opt in on the ZESCODE gateway', async () => {
     const siti = registry.find('siti');
 
-    expect(siti.provider).toBe('pollinations');
+    expect(siti.provider).toBe('newapi');
     expect(siti.model).toBe(seatsConfig.seats.find((seat) => seat.id === 'siti').model);
   });
 
@@ -81,6 +81,22 @@ describe('seat level provider routing', () => {
     expect(john.model).toBe('claude-fable-5.1');
     expect(john.fallbackProvider).toBe('pollinations');
     expect(john.fallbackModel).toBe('openai/gpt-5.4-nano');
+  });
+
+  it('routes a job through the provider override stored on the job', async () => {
+    const job = await engine.createJob({
+      title: 'Provider override job',
+      objective: 'Find a repository and prepare it for ZESCODE',
+      ownerEmail: 'phase2@zes.codes',
+      metadata: { provider: 'apinexgate', model: 'claude-fable-5.1' },
+    });
+
+    await planner.planJob(job.id);
+    const outcome = await scheduler.runNextTask(job.id, { workerId: 'test-worker' });
+
+    expect(outcome.ran).toBe(true);
+    expect(observedRoute.provider).toBe('apinexgate');
+    expect(observedRoute.model).toBe('claude-fable-5.1');
   });
 
   it('runs the scout task through the seat provider and books it in model_usage', async () => {

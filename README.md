@@ -276,9 +276,28 @@ are validated with zod.
 Cloudflare.
 
 Free tier flow: hero copy (Castor) → hero image (Pollinations Image API) → QC Council
-(two vision models, pass at ≥ 60) → template render → Cloudflare Pages deploy. A failed
+(vision models, pass at ≥ 60) → template render → Cloudflare Pages deploy. A failed
 QC verdict is retried with a new seed up to three times; the pipeline then returns
 `422` with the QC report rather than deploying.
+
+### Provider API
+
+The hub calls model providers through the provider registry. The ZESCODE API gateway
+(new-api) is the default provider: it routes across its own channels and keeps the
+billing trail. Pollinations and APInexGate stay parallel providers that a seat has to
+name explicitly — a provider failure never silently switches the work to another one.
+
+| Method | Path | Response |
+| --- | --- | --- |
+| GET | `/api/providers` | `{ providers, defaultProvider }` — no credentials |
+| GET | `/api/providers/models?provider=newapi` | `{ provider, models, fetchedAt }` — catalogue read from the provider |
+| GET | `/api/providers/health` | `{ defaultProvider, providers: [{ provider, configured, ok, latencyMs, modelCount }] }` |
+
+A task can name its own provider and model: on a job (`POST /api/v1/jobs` with
+`provider` and `model`) or on an agent node (`config.provider` and `config.model` in a
+workflow definition). Both are validated on the server: the provider has to exist in the
+registry, the model id has to be a plain token, and a model id is only accepted together
+with a provider.
 
 ```bash
 curl -X POST http://localhost:8765/api/pipeline/free \
@@ -323,9 +342,19 @@ Copy `.env.example` to `.env`. The table below matches that file exactly.
 | `AGORA_HUB_PORT` | no | HTTP port, default `8765` |
 | `DATABASE_URL` | yes* | PostgreSQL connection string for the job store |
 | `PGLITE_DATA_DIR` | no | PGlite data directory when `DATABASE_URL` is unset |
-| `POLLINATIONS_API_KEY` | yes | Pollinations bearer token |
+| `NEW_API_BASE_URL` | no | ZESCODE API gateway base, default `https://api.zes.codes/v1` |
+| `NEW_API_API_KEY` | yes | ZESCODE API gateway token — the default provider |
+| `NEW_API_DEFAULT_MODEL` | no | Model used when a seat names none |
+| `NEW_API_COST_PER_MILLION_TOKENS` | no | Flat cost estimate for `model_usage`, default `0.5` |
+| `POLLINATIONS_API_KEY` | no | Pollinations bearer token (parallel provider) |
 | `POLLINATIONS_API_BASE` | no | Pollinations API origin |
 | `POLLINATIONS_GATEWAY_URL` | no | OpenAI-compatible gateway base, default `https://api.pollinations.ai/v1` |
+| `POLLINATIONS_DEFAULT_MODEL` | no | Model used when a Pollinations seat names none |
+| `POLLINATIONS_COST_PER_MILLION_TOKENS` | no | Flat cost estimate for `model_usage`, default `0.5` |
+| `APINEXGATE_BASE_URL` | no | APInexGate reseller gateway base |
+| `APINEXGATE_API_KEY` | no | APInexGate customer token (parallel provider, never an implicit fallback) |
+| `APINEXGATE_DEFAULT_MODEL` | no | Model used when an APInexGate seat names none |
+| `APINEXGATE_COST_PER_MILLION_TOKENS` | no | Flat cost estimate for `model_usage`, default `0.5` |
 | `POLLINATIONS_MODEL_ORCHESTRATOR` | no | Fallback model when a seat has none |
 | `POLLINATIONS_MODEL_CASTOR` | no | Reference value for the castor seat |
 | `POLLINATIONS_MODEL_JOHN` | no | Reference value for the john seat |

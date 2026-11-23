@@ -135,7 +135,7 @@ describe('workflow API', () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.error).toMatch(/Model identifiers are resolved by the hub/);
+    expect(body.error).toMatch(/A model override needs a known provider/);
   });
 
   it('rejects a definition with a cycle', async () => {

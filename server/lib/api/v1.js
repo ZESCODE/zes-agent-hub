@@ -5,6 +5,13 @@ import express from 'express';
 import { z } from 'zod';
 import { describeNodeTypes } from '../workflows/node-types.js';
 import { WORKFLOW_CONTRACT_VERSION } from '../workflows/contract.js';
+import { isKnownProvider } from '../providers/registry.js';
+
+const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@\-/]{0,119}$/;
+
+function isValidModelId(model) {
+  return typeof model === 'string' && MODEL_ID_PATTERN.test(model);
+}
 
 export function createApiRouter({
   engine,
@@ -74,6 +81,8 @@ export function createApiRouter({
       .default({}),
     workflowId: z.string().max(120).optional(),
     workflowVersion: z.number().int().positive().optional(),
+    provider: z.string().min(1).max(40).optional(),
+    model: z.string().min(1).max(120).optional(),
   });
 
   router.post(
@@ -87,6 +96,18 @@ export function createApiRouter({
 
       const input = parsed.data;
       const ownerPrincipal = callerPrincipal(req);
+
+      if (input.provider && !isKnownProvider(input.provider)) {
+        return res.status(400).json({ error: `Unknown provider: ${input.provider}` });
+      }
+
+      if (input.model && !input.provider) {
+        return res.status(400).json({ error: 'A model override needs a provider' });
+      }
+
+      if (input.model && !isValidModelId(input.model)) {
+        return res.status(400).json({ error: 'Invalid model identifier' });
+      }
 
       if (input.workflowId && definitions) {
         try {
@@ -109,7 +130,12 @@ export function createApiRouter({
         workflowType: input.workflowType,
         projectId: input.projectId ?? null,
         ownerEmail: input.ownerEmail,
-        metadata: { ...input.metadata, preferences: input.preferences },
+        metadata: {
+          ...input.metadata,
+          preferences: input.preferences,
+          ...(input.provider ? { provider: input.provider } : {}),
+          ...(input.model ? { model: input.model } : {}),
+        },
         approvalRequired: Boolean(input.preferences.requireApprovalBeforeFork),
       });
 

@@ -1,7 +1,7 @@
 // zes-agent-hub — agent model runner
 // Executes one task with the routed model and returns a structured result.
 
-import { costPerMillionTokens, getProvider } from '../providers/registry.js';
+import { costPerMillionTokens, DEFAULT_PROVIDER, getProvider } from '../providers/registry.js';
 
 const SYSTEM_PROMPTS = {
   castor: 'You are Castor, the orchestrator. Break objectives into concrete, verifiable steps.',
@@ -98,11 +98,12 @@ export async function runTaskWithModel({ agent, task, route, timeoutMs = 180_000
 }
 
 /**
- * Call the routed provider. When that provider is not the default one and it
- * fails, the run continues on the fallback provider instead of failing the task.
+ * Call the routed provider. A fallback provider is used only when the route
+ * names one explicitly, so a provider failure never silently switches the
+ * work to another provider.
  */
 async function callWithFallback({ route, messages, timeoutMs }) {
-  const providerId = route.provider || 'pollinations';
+  const providerId = route.provider || DEFAULT_PROVIDER;
   const provider = getProvider(providerId);
   const options = { maxTokens: 2000, temperature: 0.3, timeoutMs };
 

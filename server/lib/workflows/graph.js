@@ -124,6 +124,8 @@ export function materializeTasks(definition, { objective, userObjective } = {}) 
           userObjective: userObjective || objective || '',
           workflowId: definition.workflowId,
           workflowVersion: definition.version,
+          ...(config.provider ? { provider: config.provider } : {}),
+          ...(config.model ? { model: config.model } : {}),
         },
         expectedOutputs: [`${node.label || node.type} result`],
         acceptanceCriteria: definition.acceptanceCriteria

@@ -18,7 +18,7 @@ import { createWorkflowRepository } from './lib/repositories/workflows.js';
 import { createEngine } from './lib/workflows/engine.js';
 import { createApiRouter } from './lib/api/v1.js';
 import { buildAgentRegistry, permissionsForAgent } from './lib/agents/registry.js';
-import { providerCatalog } from './lib/providers/registry.js';
+import { DEFAULT_PROVIDER, getProvider, isKnownProvider, providerCatalog } from './lib/providers/registry.js';
 import { createPlanner } from './lib/orchestrator/planner.js';
 import { createScheduler } from './lib/orchestrator/scheduler.js';
 import { runTaskWithModel } from './lib/orchestrator/model-runner.js';
@@ -199,7 +199,60 @@ app.get('/healthz', (req, res) => {
 
 // Model providers the hub can call. Read-only, no credentials are returned.
 app.get('/api/providers', (req, res) => {
-  res.json({ providers: providerCatalog(), defaultProvider: 'pollinations' });
+  res.json({ providers: providerCatalog(), defaultProvider: DEFAULT_PROVIDER });
+});
+
+// Model catalogue of one provider, read from the provider itself.
+app.get('/api/providers/models', async (req, res) => {
+  const providerId = String(req.query.provider || DEFAULT_PROVIDER);
+
+  if (!isKnownProvider(providerId)) {
+    return res.status(404).json({ error: `Unknown provider: ${providerId}` });
+  }
+
+  const provider = getProvider(providerId);
+
+  if (!provider.listModels) {
+    return res.status(400).json({ error: `Provider ${providerId} does not expose a model catalogue` });
+  }
+
+  try {
+    const models = await provider.listModels();
+    return res.json({ provider: providerId, models, fetchedAt: new Date().toISOString() });
+  } catch (error) {
+    return res.status(502).json({ error: error.message, code: error.code || 'provider_error' });
+  }
+});
+
+// Provider health. Probes the configured providers, never returns credentials.
+app.get('/api/providers/health', async (req, res) => {
+  const results = await Promise.all(
+    providerCatalog().map(async (entry) => {
+      const provider = getProvider(entry.id);
+
+      if (!entry.configured) {
+        return { provider: entry.id, configured: false, ok: false, latencyMs: null, error: 'not_configured' };
+      }
+
+      if (typeof provider.health !== 'function') {
+        return { provider: entry.id, configured: true, ok: null, latencyMs: null, error: null };
+      }
+
+      const health = await provider.health();
+
+      return {
+        provider: entry.id,
+        configured: true,
+        ok: health.ok,
+        status: health.status ?? null,
+        latencyMs: health.latencyMs ?? null,
+        modelCount: health.modelCount ?? null,
+        error: health.error ?? null,
+      };
+    }),
+  );
+
+  return res.json({ defaultProvider: DEFAULT_PROVIDER, providers: results });
 });
 
 /*

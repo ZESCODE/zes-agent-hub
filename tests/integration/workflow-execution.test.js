@@ -182,7 +182,7 @@ describe('workflow definitions', () => {
     const broken = scoutDefinition();
     broken.nodes[1].config.model = 'openai/gpt-6-astra';
 
-    await expect(definitions.createDefinition(broken)).rejects.toThrow(/Model identifiers are resolved by the hub/);
+    await expect(definitions.createDefinition(broken)).rejects.toThrow(/A model override needs a known provider/);
   });
 });
 

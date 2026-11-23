@@ -3,6 +3,8 @@
 
 import { z } from 'zod';
 
+import { DEFAULT_PROVIDER } from '../providers/registry.js';
+
 const agentDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -28,7 +30,7 @@ const BUILTIN_AGENTS = [
     role: 'quality',
     description: 'Independent quality and acceptance verification',
     enabled: true,
-    provider: 'pollinations',
+    provider: DEFAULT_PROVIDER,
     model: 'openai/gpt-6-astra',
     tools: ['qc.check', 'github.repository.read'],
     permissions: ['model.generate', 'verification.read', 'qc.run'],
@@ -64,7 +66,7 @@ export function buildAgentRegistry(config) {
       role: seat.role,
       description: seat.mission,
       enabled: true,
-      provider: seat.provider || 'pollinations',
+      provider: seat.provider || DEFAULT_PROVIDER,
       model: seat.model,
       fallbackProvider: seat.fallbackProvider || undefined,
       fallbackModel: seat.fallbackModel || undefined,

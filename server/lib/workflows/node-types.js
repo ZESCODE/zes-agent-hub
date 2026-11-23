@@ -38,6 +38,8 @@ const agentConfigSchema = z
     routingPolicy: routingPolicySchema,
     objective: z.string().max(2000).optional(),
     timeoutMs: z.number().int().positive().max(1_800_000).optional(),
+    provider: z.string().min(1).max(40).optional(),
+    model: z.string().min(1).max(120).optional(),
   })
   .strict();
 

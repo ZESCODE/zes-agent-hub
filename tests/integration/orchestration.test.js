@@ -75,9 +75,9 @@ describe('milestone 2 — castor orchestration', () => {
   });
 
   it('routes models per task type', () => {
-    expect(routeFor({ taskType: 'scout' }).model).toBe('openai/gpt-6-astra');
-    expect(routeFor({ taskType: 'deploy' }).model).toBe('deepseek/deepseek-v4.1-flash');
-    expect(routeFor({ taskType: 'unknown-type' }).model).toBe('openai/gpt-5.4-nano');
+    expect(routeFor({ taskType: 'scout' }).model).toBe('gpt-6.2-astra');
+    expect(routeFor({ taskType: 'deploy' }).model).toBe('deepseek-v4.1-flash');
+    expect(routeFor({ taskType: 'unknown-type' }).model).toBe('deepseek-v4.1-flash');
     expect(routeFor({ taskType: 'verify' }).complexity).toBe('high');
     expect(knownTaskTypes()).toContain('build');
   });
@@ -129,7 +129,7 @@ describe('milestone 2 — castor orchestration', () => {
 
     const usage = await repos.modelUsage.listByJob(job.id);
     expect(usage.length).toBe(1);
-    expect(usage[0].model).toBe('openai/gpt-6-astra');
+    expect(usage[0].model).toBe('gpt-6.2-astra');
     expect(usage[0].success).toBe(true);
   });
 

@@ -40,6 +40,7 @@ beforeAll(async () => {
     repos,
     modelRunner: async ({ agent, task, route }) => {
       observedRoute = route;
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       return {
         result: {
@@ -83,6 +84,13 @@ describe('seat level provider routing', () => {
     expect(john.fallbackModel).toBe('openai/gpt-5.4-nano');
   });
 
+  it('uses the model of a seat that names the gateway', async () => {
+    const gatewaySeat = registry.find('siti');
+
+    expect(gatewaySeat.provider).toBe('newapi');
+    expect(gatewaySeat.model).toBe(seatsConfig.seats.find((seat) => seat.id === 'siti').model);
+  });
+
   it('routes a job through the provider override stored on the job', async () => {
     const job = await engine.createJob({
       title: 'Provider override job',
@@ -119,5 +127,6 @@ describe('seat level provider routing', () => {
     expect(usage[0].provider).toBe('apinexgate');
     expect(usage[0].model).toBe('claude-fable-5.1');
     expect(usage[0].success).toBe(true);
+    expect(Number(usage[0].latency_ms)).toBeGreaterThan(0);
   });
 });

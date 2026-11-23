@@ -6,20 +6,20 @@
 import { DEFAULT_PROVIDER, defaultModelFor, isKnownProvider } from './registry.js';
 
 const ROUTES = {
-  classify: { model: 'openai/gpt-5.4-nano', complexity: 'low', timeoutMs: 60_000, maxRetries: 2 },
-  plan: { model: 'deepseek/deepseek-v4.1-flash', complexity: 'high', timeoutMs: 180_000, maxRetries: 2 },
-  scout: { model: 'openai/gpt-6-astra', complexity: 'medium', timeoutMs: 180_000, maxRetries: 3 },
-  research: { model: 'openai/gpt-6-astra', complexity: 'medium', timeoutMs: 180_000, maxRetries: 3 },
-  architecture: { model: 'deepseek/deepseek-v4.1-flash', complexity: 'high', timeoutMs: 240_000, maxRetries: 2 },
-  design: { model: 'openai/gpt-6.1-terra', complexity: 'medium', timeoutMs: 180_000, maxRetries: 2 },
-  branding: { model: 'openai/gpt-6.1-terra', complexity: 'low', timeoutMs: 120_000, maxRetries: 2 },
-  build: { model: 'openai/gpt-6-astra', complexity: 'high', timeoutMs: 300_000, maxRetries: 3 },
-  implementation: { model: 'openai/gpt-6-astra', complexity: 'high', timeoutMs: 300_000, maxRetries: 3 },
-  image: { model: 'openai/gpt-6.1-terra', complexity: 'low', timeoutMs: 120_000, maxRetries: 2 },
-  deploy: { model: 'deepseek/deepseek-v4.1-flash', complexity: 'medium', timeoutMs: 300_000, maxRetries: 2 },
-  infrastructure: { model: 'deepseek/deepseek-v4.1-flash', complexity: 'medium', timeoutMs: 300_000, maxRetries: 2 },
-  verify: { model: 'openai/gpt-6-astra', complexity: 'high', timeoutMs: 180_000, maxRetries: 2 },
-  verification: { model: 'openai/gpt-6-astra', complexity: 'high', timeoutMs: 180_000, maxRetries: 2 },
+  classify: { model: 'deepseek-v4.1-flash', complexity: 'low', timeoutMs: 60_000, maxRetries: 2 },
+  plan: { model: 'deepseek-v4.1-flash', complexity: 'high', timeoutMs: 180_000, maxRetries: 2 },
+  scout: { model: 'gpt-6.2-astra', complexity: 'medium', timeoutMs: 180_000, maxRetries: 3 },
+  research: { model: 'gpt-6.2-astra', complexity: 'medium', timeoutMs: 180_000, maxRetries: 3 },
+  architecture: { model: 'deepseek-v4.1-flash', complexity: 'high', timeoutMs: 240_000, maxRetries: 2 },
+  design: { model: 'gpt-6.1-terra', complexity: 'medium', timeoutMs: 180_000, maxRetries: 2 },
+  branding: { model: 'gpt-6.1-terra', complexity: 'low', timeoutMs: 120_000, maxRetries: 2 },
+  build: { model: 'gpt-6.2-astra', complexity: 'high', timeoutMs: 300_000, maxRetries: 3 },
+  implementation: { model: 'gpt-6.2-astra', complexity: 'high', timeoutMs: 300_000, maxRetries: 3 },
+  image: { model: 'gpt-6.1-terra', complexity: 'low', timeoutMs: 120_000, maxRetries: 2 },
+  deploy: { model: 'deepseek-v4.1-flash', complexity: 'medium', timeoutMs: 300_000, maxRetries: 2 },
+  infrastructure: { model: 'deepseek-v4.1-flash', complexity: 'medium', timeoutMs: 300_000, maxRetries: 2 },
+  verify: { model: 'gpt-6.2-astra', complexity: 'high', timeoutMs: 180_000, maxRetries: 2 },
+  verification: { model: 'gpt-6.2-astra', complexity: 'high', timeoutMs: 180_000, maxRetries: 2 },
 };
 
 const DEFAULT_ROUTE = ROUTES.classify;

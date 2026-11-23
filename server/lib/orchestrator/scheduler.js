@@ -544,6 +544,7 @@ export function createScheduler({
     const upstream = await upstreamContext(jobId, task, definition);
     const artifacts = await repos.artifacts.listByJob(jobId);
     const taskInput = task.input || {};
+    const startedAt = Date.now();
 
     const result = await modelRunner({
       agent,
@@ -568,7 +569,7 @@ export function createScheduler({
       spent,
     });
 
-    const latencyMs = result.latencyMs ?? 0;
+    const latencyMs = result.latencyMs ?? Date.now() - startedAt;
 
     await repos.modelUsage.create({
       jobId,
@@ -735,15 +736,15 @@ export function createScheduler({
   }
 
   /**
-   * A seat that names a provider owns its model list, so its own model id is
-   * used. The default provider keeps the task-type model from the route table.
+   * A seat names the model it owns. When a seat has no model, the router
+   * resolves the provider default and finally the task type model.
    */
   function routeModelFor(agent) {
-    if (!agent?.provider || agent.provider === DEFAULT_PROVIDER) {
+    if (!agent?.provider || !agent.model) {
       return undefined;
     }
 
-    return agent.model || undefined;
+    return agent.model;
   }
 
   /**

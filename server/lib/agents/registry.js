@@ -31,7 +31,7 @@ const BUILTIN_AGENTS = [
     description: 'Independent quality and acceptance verification',
     enabled: true,
     provider: DEFAULT_PROVIDER,
-    model: 'openai/gpt-6-astra',
+    model: 'gpt-6.2-astra',
     tools: ['qc.check', 'github.repository.read'],
     permissions: ['model.generate', 'verification.read', 'qc.run'],
     maxConcurrentTasks: 2,

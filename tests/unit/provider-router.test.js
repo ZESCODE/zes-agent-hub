@@ -74,7 +74,7 @@ describe('router', () => {
     const route = routeFor({ taskType: 'scout' });
 
     expect(route.provider).toBe('newapi');
-    expect(route.model).toBe('openai/gpt-6-astra');
+    expect(route.model).toBe('gpt-6.2-astra');
     expect(route.fallbackProvider).toBeNull();
     expect(route.fallbackModel).toBeNull();
   });
@@ -92,7 +92,7 @@ describe('router', () => {
     const route = routeFor({ taskType: 'not-a-task' });
 
     expect(route.provider).toBe('newapi');
-    expect(route.model).toBe('openai/gpt-5.4-nano');
+    expect(route.model).toBe('deepseek-v4.1-flash');
   });
 
   it('routes to apinexgate when a seat asks for it', () => {
@@ -130,7 +130,7 @@ describe('router', () => {
     const route = routeFor({ taskType: 'scout', provider: 'not-a-provider' });
 
     expect(route.provider).toBe('newapi');
-    expect(route.model).toBe('openai/gpt-6-astra');
+    expect(route.model).toBe('gpt-6.2-astra');
   });
 
   it('keeps the task type list stable', () => {

@@ -12,51 +12,79 @@
       "id": "castor",
       "type": "operator",
       "role": "orchestrator",
-      "nicknameModel": "castor@deepseek/deepseek-v4.1-flash",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "provider": "pollinations",
-      "mission": "Orchestrator seat — receives user prompts, routes to council channel, synthesizes consensus, directs execution, posts final results",
-      "capabilities": ["routing", "synthesis", "task-delegation", "result-aggregation", "vercel-deploy", "cloudflare-deploy"]
+      "nicknameModel": "castor@deepseek-v4.1-flash",
+      "model": "deepseek-v4.1-flash",
+      "provider": "newapi",
+      "mission": "Orchestrator seat \u2014 receives user prompts, routes to council channel, synthesizes consensus, directs execution, posts final results",
+      "capabilities": [
+        "routing",
+        "synthesis",
+        "task-delegation",
+        "result-aggregation",
+        "vercel-deploy",
+        "cloudflare-deploy"
+      ]
     },
     {
       "id": "john",
       "type": "member",
       "role": "council",
-      "nicknameModel": "john@openai/gpt-6-astra",
-      "model": "openai/gpt-6-astra",
-      "provider": "pollinations",
-      "mission": "Council member — strategic analysis, architecture planning, high-level decision making",
-      "capabilities": ["strategy", "architecture", "decision-making", "planning"]
+      "nicknameModel": "john@gpt-6.2-astra",
+      "model": "gpt-6.2-astra",
+      "provider": "newapi",
+      "mission": "Council member \u2014 strategic analysis, architecture planning, high-level decision making",
+      "capabilities": [
+        "strategy",
+        "architecture",
+        "decision-making",
+        "planning"
+      ]
     },
     {
       "id": "siti",
       "type": "member",
       "role": "council",
-      "nicknameModel": "siti@openai/gpt-6.1-terra",
-      "model": "openai/gpt-6.1-terra",
-      "provider": "pollinations",
-      "mission": "Council member — creative direction, content strategy, user experience design",
-      "capabilities": ["creative", "content", "ux-design", "writing"]
+      "nicknameModel": "siti@gpt-6.1-terra",
+      "model": "gpt-6.1-terra",
+      "provider": "newapi",
+      "mission": "Council member \u2014 creative direction, content strategy, user experience design",
+      "capabilities": [
+        "creative",
+        "content",
+        "ux-design",
+        "writing"
+      ]
     },
     {
       "id": "laurent",
       "type": "member",
       "role": "council",
-      "nicknameModel": "laurent@x-ai/grok-4.6",
-      "model": "x-ai/grok-4.6",
-      "provider": "pollinations",
-      "mission": "Council member — technical implementation, code review, system architecture",
-      "capabilities": ["implementation", "code-review", "system-design", "debugging"]
+      "nicknameModel": "laurent@grok-4.7",
+      "model": "grok-4.7",
+      "provider": "newapi",
+      "mission": "Council member \u2014 technical implementation, code review, system architecture",
+      "capabilities": [
+        "implementation",
+        "code-review",
+        "system-design",
+        "debugging"
+      ]
     },
     {
       "id": "labu",
       "type": "member",
       "role": "council",
-      "nicknameModel": "labu@deepseek/deepseek-v4.1-flash",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "provider": "pollinations",
-      "mission": "Council member — deployment coordination, Vercel + Cloudflare pipeline management, infrastructure",
-      "capabilities": ["deployment", "infrastructure", "vercel", "cloudflare", "devops"]
+      "nicknameModel": "labu@kimi-k3.1-pro",
+      "model": "kimi-k3.1-pro",
+      "provider": "newapi",
+      "mission": "Council member \u2014 deployment coordination, Vercel + Cloudflare pipeline management, infrastructure",
+      "capabilities": [
+        "deployment",
+        "infrastructure",
+        "vercel",
+        "cloudflare",
+        "devops"
+      ]
     }
   ],
   "delegations": [
@@ -116,5 +144,18 @@
     ],
     "template": "https://zes.codes",
     "localPath": "/data/data/com.termux/files/home/tmp/vercel/zes.codes"
+  },
+  "newapi": {
+    "apiKeyEnv": "NEW_API_API_KEY",
+    "baseUrl": "https://api.zes.codes/v1",
+    "defaultModel": "deepseek-v4.1-flash",
+    "note": "ZESCODE API gateway (new-api). The gateway routes across its own channels and keeps the billing trail."
+  },
+  "qc": {
+    "provider": "newapi",
+    "reviewers": [
+      "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    ],
+    "note": "Vision reviewers have to be models that accept image input."
   }
 }

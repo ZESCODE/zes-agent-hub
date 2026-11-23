@@ -124,12 +124,40 @@ describe('workflow contract', () => {
     expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(/Unknown task type/);
   });
 
-  it('rejects a browser supplied model identifier', () => {
+  it('rejects a browser supplied model identifier without a provider', () => {
     const definition = baseDefinition();
     definition.nodes[1].config.model = 'openai/gpt-6-astra';
 
     expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(
-      /Model identifiers are resolved by the hub/,
+      /A model override needs a known provider/,
+    );
+  });
+
+  it('rejects a model override for an unknown provider', () => {
+    const definition = baseDefinition();
+    definition.nodes[1].config.provider = 'not-a-provider';
+    definition.nodes[1].config.model = 'openai/gpt-6-astra';
+
+    expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(
+      /Unknown provider/,
+    );
+  });
+
+  it('accepts a model override for a known provider', () => {
+    const definition = baseDefinition();
+    definition.nodes[1].config.provider = 'newapi';
+    definition.nodes[1].config.model = 'gpt-6.2-astra';
+
+    expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).not.toThrow();
+  });
+
+  it('rejects a model override with an invalid model identifier', () => {
+    const definition = baseDefinition();
+    definition.nodes[1].config.provider = 'newapi';
+    definition.nodes[1].config.model = 'model id with spaces';
+
+    expect(() => validateWorkflowDefinition(definition, { registry, knownTaskTypes })).toThrow(
+      /Invalid model identifier/,
     );
   });
 
@@ -307,6 +335,18 @@ describe('workflow graph', () => {
     expect(tasks.map((task) => task.nodeId)).toEqual(['n_castor', 'n_john', 'n_out']);
     expect(tasks[0].kind).toBe('agent');
     expect(tasks[2].kind).toBe('output');
+  });
+
+  it('carries a provider and model override into the task input', () => {
+    const definition = baseDefinition();
+    definition.nodes[1].config.provider = 'newapi';
+    definition.nodes[1].config.model = 'gpt-6.2-astra';
+
+    const tasks = materializeTasks(definition, { objective: 'find a repo' });
+    const johnTask = tasks.find((task) => task.assignedAgent === 'john');
+
+    expect(johnTask.input.provider).toBe('newapi');
+    expect(johnTask.input.model).toBe('gpt-6.2-astra');
   });
 
   it('materialises a start node as a marker and a report node as an output task', () => {

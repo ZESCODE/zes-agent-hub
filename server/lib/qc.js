@@ -2,10 +2,10 @@
 // Parallel vision review of a generated image. Every reviewer returns JSON
 // {score, issues}; the average decides pass/fail.
 
-import { pollinationsGenChat } from '../pollinations-client.js';
+import { getProvider } from './providers/registry.js';
 import { loadSeatConfig } from './council.js';
 
-const DEFAULT_REVIEWERS = ['openai/gpt-6-astra', 'x-ai/grok-4.6'];
+const DEFAULT_REVIEWERS = ['nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'];
 const PASS_SCORE = 60;
 
 function parseVerdict(content) {
@@ -39,20 +39,16 @@ export async function qcCheck(imageUrl, options = {}) {
 
   const config = options.config || loadSeatConfig();
 
-  const reviewers =
-    options.models ||
-    config.seats
-      .filter((seat) => seat.id !== 'castor')
-      .map((seat) => seat.model)
-      .filter(Boolean)
-      .slice(0, 2);
-
+  const qcConfig = config.qc || {};
+  const reviewerProvider = options.provider || qcConfig.provider || 'newapi';
+  const reviewers = options.models || qcConfig.reviewers || DEFAULT_REVIEWERS;
   const models = reviewers.length > 0 ? reviewers : DEFAULT_REVIEWERS;
+  const provider = getProvider(reviewerProvider);
 
   const results = await Promise.all(
     models.map(async (model) => {
       try {
-        const response = await pollinationsGenChat(
+        const response = await provider.genChat(
           model,
           [
             {
@@ -70,7 +66,7 @@ export async function qcCheck(imageUrl, options = {}) {
               ],
             },
           ],
-          { maxTokens: 300, temperature: 0.1 },
+          { maxTokens: qcConfig.maxTokens || 800, temperature: 0.1 },
         );
 
         const verdict = parseVerdict(response.content);

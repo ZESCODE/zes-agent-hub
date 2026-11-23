@@ -1,6 +1,6 @@
 // zes-agent-hub — image helpers
 
-import { pollinationsGenText } from '../pollinations-client.js';
+import { getProvider } from './providers/registry.js';
 
 const IMAGE_BASE = process.env.POLLINATIONS_IMAGE_BASE_URL || 'https://image.pollinations.ai/prompt';
 
@@ -27,10 +27,17 @@ export function buildImageUrl(prompt, options = {}) {
  * Ask a seat to write a short hero headline for the site.
  */
 export async function generateHeroCopy(seat, { title, niche }) {
-  const response = await pollinationsGenText(
+  const provider = getProvider(seat.provider);
+  const response = await provider.genChat(
     seat.model,
-    `Write one punchy hero headline (max 12 words) for a ${niche} business called "${title}".
-Return only the headline, no quotes.`,
+    [
+      {
+        role: 'user',
+        content:
+          `Write one punchy hero headline (max 12 words) for a ${niche} business called "${title}".\n` +
+          'Return only the headline, no quotes.',
+      },
+    ],
     { temperature: 0.8, maxTokens: 800 },
   );
 

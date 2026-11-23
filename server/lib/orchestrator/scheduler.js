@@ -7,6 +7,7 @@
 // keep the legacy priority order.
 
 import { routeFor } from '../providers/router.js';
+import { DEFAULT_PROVIDER, isKnownProvider } from '../providers/registry.js';
 import { ConditionEvaluationError, conditionContext, evaluateCondition } from '../workflows/conditions.js';
 import { JOB_TRANSITIONS } from '../workflows/transitions.js';
 import { dependenciesOf } from '../workflows/graph.js';
@@ -658,12 +659,14 @@ export function createScheduler({
       return { ran: false, reason: 'unknown agent', taskId: task.id };
     }
 
+    const jobOverride = await jobRouteOverride(jobId);
+
     await engine.transitionTask(task.id, 'running', { reason: `claimed by ${workerId}` });
 
     const route = routeFor({
       taskType: task.task_type,
-      provider: agent.provider,
-      model: routeModelFor(agent),
+      provider: taskProviderFor(task, agent, jobOverride),
+      model: taskModelFor(task, agent, jobOverride),
       fallbackProvider: agent.fallbackProvider,
       fallbackModel: agent.fallbackModel,
     });
@@ -736,11 +739,71 @@ export function createScheduler({
    * used. The default provider keeps the task-type model from the route table.
    */
   function routeModelFor(agent) {
-    if (!agent?.provider || agent.provider === 'pollinations') {
+    if (!agent?.provider || agent.provider === DEFAULT_PROVIDER) {
       return undefined;
     }
 
     return agent.model || undefined;
+  }
+
+  /**
+   * A task may name its own provider. The workflow contract validates the id
+   * against the provider registry before the task is created, so the scheduler
+   * only accepts what it knows. A job level override applies to every task of
+   * that job unless the task names its own provider.
+   */
+  function taskProviderFor(task, agent, jobOverride) {
+    const requested = task.input?.provider;
+
+    if (isKnownProvider(requested)) {
+      return requested;
+    }
+
+    if (isKnownProvider(jobOverride?.provider)) {
+      return jobOverride.provider;
+    }
+
+    return agent.provider || DEFAULT_PROVIDER;
+  }
+
+  /**
+   * A task may name its own model. It only applies when the task also names a
+   * provider, so a model id never crosses provider boundaries by accident.
+   */
+  function taskModelFor(task, agent, jobOverride) {
+    const requestedModel = task.input?.model;
+    const requestedProvider = task.input?.provider;
+
+    if (requestedModel && isKnownProvider(requestedProvider)) {
+      return requestedModel;
+    }
+
+    if (jobOverride?.model && isKnownProvider(jobOverride.provider)) {
+      return jobOverride.model;
+    }
+
+    return routeModelFor(agent);
+  }
+
+  /**
+   * Provider override stored on the job when it was created.
+   */
+  async function jobRouteOverride(jobId) {
+    const job = await repos.jobs.findById(jobId);
+    const metadata = job?.metadata;
+
+    if (!metadata || typeof metadata !== 'object') {
+      return null;
+    }
+
+    const provider = isKnownProvider(metadata.provider) ? metadata.provider : null;
+    const model = typeof metadata.model === 'string' && metadata.model.trim() ? metadata.model.trim() : null;
+
+    if (!provider && !model) {
+      return null;
+    }
+
+    return { provider, model };
   }
 
   return { runNextTask, reapExpiredLeases };

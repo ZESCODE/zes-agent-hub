@@ -14,6 +14,7 @@ import {
   toolPermissions,
   isProtectedActionType,
 } from './node-types.js';
+import { isKnownProvider } from '../providers/registry.js';
 
 export const WORKFLOW_CONTRACT_VERSION = 'zes.workflow/v1';
 
@@ -120,6 +121,13 @@ function issue(path, message) {
 }
 
 /**
+ * Model ids travel to a provider as a single path-like token.
+ */
+function isValidModelId(model) {
+  return typeof model === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:@\-/]{0,119}$/.test(model);
+}
+
+/**
  * Validate a workflow definition beyond its shape: node kinds, agent bindings,
  * routing policies, permissions, graph structure and approval coverage.
  *
@@ -172,8 +180,28 @@ export function validateWorkflowDefinition(input, context = {}) {
       continue;
     }
 
-    if (node.config && node.config.model !== undefined) {
+    if (node.config && node.config.model !== undefined && !isAgentNodeType(node.type)) {
       issues.push(issue(`nodes.${node.id}.config.model`, 'Model identifiers are resolved by the hub'));
+    }
+
+    if (node.config && node.config.provider !== undefined && !isAgentNodeType(node.type)) {
+      issues.push(issue(`nodes.${node.id}.config.provider`, 'Provider selection is owned by the agent registry'));
+    }
+
+    if (node.config && node.config.model !== undefined && isAgentNodeType(node.type)) {
+      const provider = node.config.provider;
+
+      if (!isKnownProvider(provider)) {
+        issues.push(issue(`nodes.${node.id}.config.model`, 'A model override needs a known provider'));
+      } else if (!isValidModelId(node.config.model)) {
+        issues.push(issue(`nodes.${node.id}.config.model`, 'Invalid model identifier'));
+      }
+    }
+
+    if (node.config && node.config.provider !== undefined && isAgentNodeType(node.type)) {
+      if (!isKnownProvider(node.config.provider)) {
+        issues.push(issue(`nodes.${node.id}.config.provider`, `Unknown provider: ${node.config.provider}`));
+      }
     }
 
     if (node.config && node.config.permissions !== undefined) {

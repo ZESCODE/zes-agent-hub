@@ -122,3 +122,33 @@ fixed, covered by a test and deployed.
 | The old Pollinations key is still valid and still in the public git history of the hub | The user has to revoke the old key on the account and approve the history rewrite |
 | The `model_router` node type does not exist | Routing is a server-side policy; a node that names a model would break the "no model ids from the client" rule |
 | Private repositories need a GitHub token on the hub | `GITHUB_TOKEN` is configured in the Render environment |
+
+## 8. Phase 3 — the ZESCODE gateway as the default provider
+
+The gateway (`https://api.zes.codes/v1`) is now the hub's default provider. The hub calls
+it through its OpenAI-compatible surface, holds one gateway token and never sees an
+upstream key. APInexGate stays a separate reseller gateway that a seat has to name
+explicitly; a provider failure no longer silently switches the work to another provider.
+
+| Capability | State | Evidence |
+| --- | --- | --- |
+| Authentication | Bearer gateway token, no key in any error message | `server/newapi-client.js`, unit test "keeps the token out of the error message" |
+| Request format | OpenAI chat completions, temperature and max tokens | unit test "sends an OpenAI compatible chat request" |
+| Streaming | Server-sent events, chunks handed to a callback | live run: `gpt-6.1-terra` → `"One, two, three."` |
+| Tool calling | Tool definitions forwarded, tool calls returned | live run: `gpt-6.2-astra` → `finish_reason: tool_calls`, `get_weather` |
+| Model listing | `GET /v1/models` read through the client | live run: 60 model ids, `GET /api/providers/models?provider=newapi` |
+| Error handling | 401, 403, 429, 5xx and "no available channel" map to distinct error codes | unit tests for every mapping |
+| Timeout and retries | Every request carries a deadline, rate limits and 5xx are retried, auth errors are not | unit tests "retries a rate limited request", "never retries an authentication failure" |
+| Cost accounting | Rate per provider, `NEW_API_COST_PER_MILLION_TOKENS` for the gateway | `server/lib/providers/registry.js`, unit test "keeps the cost rate of each provider separate" |
+| Provider health | `GET /api/providers/health` probes every configured provider | live run: gateway `200`, 60 models, 293 ms |
+| Per-task override | Job level (`provider`, `model`) and node level (`config.provider`, `config.model`), validated on the server | integration test "routes a job through the provider override stored on the job" |
+
+Seat models were moved to gateway model ids that answer live: `deepseek-v4.1-flash`
+(castor), `gpt-6.2-astra` (john), `gpt-6.1-terra` (siti), `grok-4.7` (laurent),
+`kimi-k3.1-pro` (labu). The QC council reviews images through
+`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`, the one verified vision model of the
+gateway catalogue.
+
+Verification: `vitest run` → 182 tests passing (6 skipped), `eslint .` clean,
+`tsc --noEmit` clean.
+

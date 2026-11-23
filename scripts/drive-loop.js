@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { seatGenText } from '../server/pollinations-client.js';
+import { seatGenText } from '../server/lib/providers/seat-call.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SEATS_CONFIG_PATH = path.resolve(__dirname, '../seats/config.json');
